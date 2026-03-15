@@ -1,0 +1,33 @@
+import type { Metadata } from "next";
+
+import { parseScoreParam } from "../data/questions";
+import { buildReportMetadata } from "../lib/report-metadata";
+import { getRequestSiteUrl } from "../lib/site";
+import ShareCardView from "./ShareCardView";
+
+type ShareSearchParams = Promise<{
+  score?: string | string[];
+}>;
+
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: ShareSearchParams;
+}): Promise<Metadata> {
+  const params = await searchParams;
+  const score = parseScoreParam(params.score);
+  const origin = await getRequestSiteUrl();
+
+  return buildReportMetadata(score, `/share?score=${score}`, origin);
+}
+
+export default async function SharePage({
+  searchParams,
+}: {
+  searchParams: ShareSearchParams;
+}) {
+  const params = await searchParams;
+  const score = parseScoreParam(params.score);
+
+  return <ShareCardView score={score} />;
+}
