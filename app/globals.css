@@ -961,6 +961,10 @@ button {
   gap: 16px;
 }
 
+.compact-insight-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .conversion-card {
   display: grid;
   gap: 20px;

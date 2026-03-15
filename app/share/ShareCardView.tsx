@@ -34,10 +34,7 @@ export default function ShareCardView({ score }: { score: number }) {
                   {score}
                   <span>/ {MAX_SCORE}</span>
                 </div>
-                <p className="share-mini-score-copy">
-                  A snapshot of how much context this person&apos;s current
-                  system actually preserves.
-                </p>
+                <p className="share-mini-score-copy">Public scorecard.</p>
               </div>
 
               <div className="share-mini-tier-panel">
@@ -71,22 +68,10 @@ export default function ShareCardView({ score }: { score: number }) {
               </div>
             </div>
 
-            <div className="share-mini-insights">
-              <article className="share-mini-insight-card">
-                <span className="section-eyebrow">What it means</span>
-                <p>{tier.focus}</p>
-              </article>
-
-              <article className="share-mini-insight-card">
-                <span className="section-eyebrow">What Thine unlocks</span>
-                <p>{tier.unlock}</p>
-              </article>
-            </div>
-
             <div className="share-mini-signal-block">
-              <span className="section-eyebrow">Shareable signals</span>
+              <span className="section-eyebrow">At a glance</span>
               <ul className="share-mini-signal-list">
-                {tier.signals.slice(0, 3).map((signal) => (
+                {tier.signals.slice(0, 2).map((signal) => (
                   <li key={signal}>{signal}</li>
                 ))}
               </ul>
@@ -94,9 +79,7 @@ export default function ShareCardView({ score }: { score: number }) {
 
             <div className="share-mini-footer">
               <p className="share-mini-footer-copy">
-                Thine turns scattered conversations, commitments, and
-                relationship context into a living intelligence layer. Take the
-                diagnostic and see where your current system stands.
+                Take the diagnostic and get your own score.
               </p>
 
               <div className="share-mini-actions">

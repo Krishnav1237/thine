@@ -82,90 +82,47 @@ export default function ResultsClient({ score }: { score: number }) {
             <span className="results-score-value">{score}</span>
             <span className="results-score-total">/ {MAX_SCORE}</span>
           </div>
-          <p className="score-caption">
-            The score reflects how much context your current system keeps alive
-            after the moment is over.
-          </p>
+          <p className="score-caption">How much context your system keeps alive.</p>
         </div>
 
         <div className="report-card report-summary-card">
           <span className="section-eyebrow">Your tier</span>
           <h1 className="results-tier">{tier.name}</h1>
           <p className="hero-support">{tier.tagline}</p>
-          <p className="report-body">{tier.description}</p>
 
           <div className="chip-row">
             <span className="chip">10-question diagnostic</span>
             <span className="chip">
               Tier band {tier.min}-{tier.max}
             </span>
-            <span className="chip">Share-ready report</span>
           </div>
         </div>
       </section>
 
-      <section className="insight-grid">
+      <section className="insight-grid compact-insight-grid">
         <article className="insight-card">
-          <span className="section-eyebrow">What this score says</span>
+          <span className="section-eyebrow">Current mode</span>
           <p>{tier.focus}</p>
         </article>
 
         <article className="insight-card">
-          <span className="section-eyebrow">Where friction shows up</span>
-          <p>{tier.blindSpot}</p>
-        </article>
-
-        <article className="insight-card">
-          <span className="section-eyebrow">Next unlock</span>
+          <span className="section-eyebrow">Next move</span>
           <p>{tier.unlock}</p>
         </article>
-      </section>
-
-      <section className="report-card signal-card">
-        <div className="section-heading">
-          <span className="section-eyebrow">Patterns in this tier</span>
-          <p className="section-copy">
-            These signals describe the operating pattern most likely associated
-            with your score.
-          </p>
-        </div>
-
-        <ul className="signal-list">
-          {tier.signals.map((signal) => (
-            <li key={signal}>{signal}</li>
-          ))}
-        </ul>
       </section>
 
       <TierScale currentScore={score} />
 
       <section className="report-card conversion-card">
         <div className="section-heading">
-          <span className="section-eyebrow">What Thine does next</span>
+          <span className="section-eyebrow">Why Thine</span>
           <h2 className="conversion-title">
-            Thine turns meetings, commitments, and relationship context into a
-            living system.
+            Thine remembers what your brain drops.
           </h2>
           <p className="section-copy">
-            If this score stings, that is the point. Thine is built to make
-            your most important conversations and follow-ups retrievable before
-            they disappear.
+            Meetings, commitments, people, and open loops stay retrievable
+            instead of leaking out of memory.
           </p>
-        </div>
-
-        <div className="conversion-grid">
-          <article className="conversion-point">
-            <strong>Remember the room</strong>
-            <p>Bring the right context into every meeting instead of starting cold.</p>
-          </article>
-          <article className="conversion-point">
-            <strong>Track open loops</strong>
-            <p>Stop letting commitments and promises leak out of memory.</p>
-          </article>
-          <article className="conversion-point">
-            <strong>Compound relationships</strong>
-            <p>Keep a live picture of where your key people and threads stand.</p>
-          </article>
         </div>
       </section>
 
@@ -187,7 +144,7 @@ export default function ResultsClient({ score }: { score: number }) {
       </div>
 
       <div className="results-share-note">
-        Copies a public scorecard link, not your full personal results page.
+        Copies a compact public scorecard.
       </div>
 
       <div className="results-footer-row">
