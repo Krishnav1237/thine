@@ -26,8 +26,6 @@ const SWIPE_FLICK_TIME_MS = 220;
 const MAX_DRAG = 140;
 const HORIZONTAL_LOCK_RATIO = 1.35;
 
-const ANSWER_SEQUENCE: ArenaAnswer[] = ["agree", "depends", "disagree"];
-
 const takeStatsOrder = [
   { key: "agree", label: "Agree" },
   { key: "depends", label: "Depends" },
@@ -73,15 +71,6 @@ const persistResponse = (response: ArenaResponse) => {
   );
 };
 
-const getMajorityAnswer = (stats: HotTake["stats"]) => {
-  return ANSWER_SEQUENCE.reduce((winner, candidate) => {
-    if (stats[candidate] > stats[winner]) {
-      return candidate;
-    }
-    return winner;
-  }, ANSWER_SEQUENCE[0]);
-};
-
 const buildDeck = () => shuffleTakes(HOT_TAKES).slice(0, TAKES_PER_SESSION);
 
 export default function ArenaPage() {
@@ -116,20 +105,14 @@ export default function ArenaPage() {
 
   const answersLocked = selectedAnswer !== null || phase === "summary";
 
-  const statsRows = useMemo(() => {
-    if (!currentTake) {
-      return [];
-    }
-    return takeStatsOrder.map((stat) => ({
-      key: stat.key,
-      label: stat.label,
-      value: currentTake.stats[stat.key],
-    }));
-  }, [currentTake]);
-
-  const sessionSummary = useMemo(() => {
+  const sessionMix = useMemo(() => {
     if (sessionResponses.length === 0) {
-      return null;
+      return {
+        total: 0,
+        agreePct: 0,
+        disagreePct: 0,
+        dependsPct: 0,
+      };
     }
 
     const totals = sessionResponses.reduce(
@@ -140,20 +123,32 @@ export default function ArenaPage() {
       { agree: 0, disagree: 0, depends: 0 }
     );
 
-    const majorityMatches = sessionResponses.reduce((acc, response) => {
-      const take = HOT_TAKES.find((item) => item.id === response.takeId);
-      if (!take) {
-        return acc;
-      }
-      return response.answer === getMajorityAnswer(take.stats) ? acc + 1 : acc;
-    }, 0);
-
     const total = sessionResponses.length;
-    const agreePct = Math.round((totals.agree / total) * 100);
-    const disagreePct = Math.round((totals.disagree / total) * 100);
-    const dependsPct = Math.round((totals.depends / total) * 100);
-    const majorityPct = Math.round((majorityMatches / total) * 100);
-    const contrarianPct = Math.max(0, 100 - majorityPct);
+    return {
+      total,
+      agreePct: Math.round((totals.agree / total) * 100),
+      disagreePct: Math.round((totals.disagree / total) * 100),
+      dependsPct: Math.round((totals.depends / total) * 100),
+    };
+  }, [sessionResponses]);
+
+  const mixRows = useMemo(
+    () => [
+      { key: "agree", label: "Agree", value: sessionMix.agreePct },
+      { key: "depends", label: "Depends", value: sessionMix.dependsPct },
+      { key: "disagree", label: "Disagree", value: sessionMix.disagreePct },
+    ],
+    [sessionMix.agreePct, sessionMix.dependsPct, sessionMix.disagreePct]
+  );
+
+  const sessionSummary = useMemo(() => {
+    if (sessionResponses.length === 0) {
+      return null;
+    }
+
+    const agreePct = sessionMix.agreePct;
+    const disagreePct = sessionMix.disagreePct;
+    const dependsPct = sessionMix.dependsPct;
 
     let profile = "Balanced Thinker";
     let profileNote =
@@ -162,11 +157,11 @@ export default function ArenaPage() {
     if (disagreePct >= 50) {
       profile = "Contrarian Thinker";
       profileNote =
-        "You push against the crowd and trust your own signal more than consensus.";
+        "You default to disagreement and trust your own signal more than the default.";
     } else if (agreePct >= 50) {
       profile = "Conformist Thinker";
       profileNote =
-        "You align with the majority more often than not, which keeps you in sync with the room.";
+        "You choose agree more often than not, which keeps your responses consistent.";
     } else if (dependsPct >= 45) {
       profile = "Nuanced Thinker";
       profileNote =
@@ -177,12 +172,10 @@ export default function ArenaPage() {
       agreePct,
       disagreePct,
       dependsPct,
-      majorityPct,
-      contrarianPct,
       profile,
       profileNote,
     };
-  }, [sessionResponses]);
+  }, [sessionMix]);
 
   useEffect(() => {
     if (phase !== "arena") {
@@ -363,7 +356,7 @@ export default function ArenaPage() {
       return;
     }
 
-    const shareText = `I disagreed with ${sessionSummary.contrarianPct}% of people on this \ud83d\udc80`;
+    const shareText = `I disagreed with ${sessionSummary.disagreePct}% of takes in Hot Takes Arena \ud83d\udc80`;
     const shareLink = `${window.location.origin}/arena`;
 
     try {
@@ -413,12 +406,15 @@ export default function ArenaPage() {
                 <span className="arena-kicker">Your Thinking Profile</span>
                 <h1>{sessionSummary.profile}</h1>
                 <p className="arena-summary-note">{sessionSummary.profileNote}</p>
+                <p className="arena-summary-meta">
+                  Based on your responses in this session.
+                </p>
               </div>
 
               <div className="arena-summary-grid">
                 <article className="arena-summary-card">
-                  <span className="arena-summary-label">Agreed with majority</span>
-                  <strong>{sessionSummary.majorityPct}%</strong>
+                  <span className="arena-summary-label">Agreed</span>
+                  <strong>{sessionSummary.agreePct}%</strong>
                 </article>
                 <article className="arena-summary-card">
                   <span className="arena-summary-label">Disagreed</span>
@@ -434,8 +430,8 @@ export default function ArenaPage() {
                 <div>
                   <span className="arena-share-label">Share text</span>
                   <p className="arena-share-text">
-                    I disagreed with {sessionSummary.contrarianPct}% of people on
-                    this \ud83d\udc80
+                    I disagreed with {sessionSummary.disagreePct}% of takes in Hot
+                    Takes Arena \ud83d\udc80
                   </p>
                 </div>
                 <button
@@ -514,7 +510,10 @@ export default function ArenaPage() {
                       showResults ? "is-visible" : ""
                     }`}
                   >
-                    {statsRows.map((row) => (
+                    <div className="arena-results-title">
+                      Your stance mix so far
+                    </div>
+                    {mixRows.map((row) => (
                       <div
                         key={row.key}
                         className={`arena-stat ${

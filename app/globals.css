@@ -2119,6 +2119,14 @@ button {
   pointer-events: none;
 }
 
+.arena-results-title {
+  font-family: var(--font-ui-stack);
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 0.68rem;
+  color: rgba(249, 247, 242, 0.5);
+}
+
 .arena-results.is-visible {
   opacity: 1;
   transform: translateY(0);
@@ -2181,6 +2189,12 @@ button {
   margin: 12px 0 0;
   color: var(--text-secondary);
   line-height: 1.6;
+}
+
+.arena-summary-meta {
+  margin: 10px 0 0;
+  font-size: 0.85rem;
+  color: rgba(249, 247, 242, 0.5);
 }
 
 .arena-summary-grid {
