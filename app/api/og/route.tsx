@@ -4,8 +4,6 @@ import { NextRequest } from "next/server";
 import { MAX_SCORE, parseScoreParam } from "../../data/questions";
 import { getScoreBand, scoreBands } from "../../lib/analyzeUser";
 
-export const runtime = "edge";
-
 const serifFont = fetch(
   new URL("../../../public/fonts/IMFeGPrm28P.ttf", import.meta.url)
 ).then((response) => response.arrayBuffer());
