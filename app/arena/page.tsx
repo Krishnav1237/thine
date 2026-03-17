@@ -18,18 +18,18 @@ type ArenaPhase = "arena" | "summary";
 
 const STORAGE_KEY = "arenaResponses";
 const TAKES_PER_SESSION = 7;
-const REVEAL_DURATION_MS = 1450;
-const EXIT_DURATION_MS = 280;
-const SWIPE_THRESHOLD = 60;
-const SWIPE_FLICK_THRESHOLD = 35;
-const SWIPE_FLICK_TIME_MS = 220;
-const MAX_DRAG = 140;
-const HORIZONTAL_LOCK_RATIO = 1.35;
+const REVEAL_DURATION_MS = 1400;
+const EXIT_DURATION_MS = 260;
+const SWIPE_THRESHOLD = 45;
+const SWIPE_FLICK_THRESHOLD = 24;
+const SWIPE_FLICK_TIME_MS = 260;
+const MAX_DRAG = 160;
+const HORIZONTAL_LOCK_RATIO = 1.1;
 
 const takeStatsOrder = [
-  { key: "agree", label: "Agree" },
-  { key: "depends", label: "Depends" },
   { key: "disagree", label: "Disagree" },
+  { key: "depends", label: "Depends" },
+  { key: "agree", label: "Agree" },
 ] as const;
 
 const shuffleTakes = (takes: HotTake[]) => {
@@ -132,14 +132,19 @@ export default function ArenaPage() {
     };
   }, [sessionResponses]);
 
-  const mixRows = useMemo(
-    () => [
-      { key: "agree", label: "Agree", value: sessionMix.agreePct },
-      { key: "depends", label: "Depends", value: sessionMix.dependsPct },
-      { key: "disagree", label: "Disagree", value: sessionMix.disagreePct },
-    ],
-    [sessionMix.agreePct, sessionMix.dependsPct, sessionMix.disagreePct]
-  );
+  const mixRows = useMemo(() => {
+    const mixValues: Record<ArenaAnswer, number> = {
+      agree: sessionMix.agreePct,
+      depends: sessionMix.dependsPct,
+      disagree: sessionMix.disagreePct,
+    };
+
+    return takeStatsOrder.map((option) => ({
+      key: option.key,
+      label: option.label,
+      value: mixValues[option.key],
+    }));
+  }, [sessionMix.agreePct, sessionMix.dependsPct, sessionMix.disagreePct]);
 
   const sessionSummary = useMemo(() => {
     if (sessionResponses.length === 0) {
@@ -534,7 +539,7 @@ export default function ArenaPage() {
                   </div>
 
                   <p className="arena-hint">
-                    Swipe right to agree, left to disagree.
+                    Swipe left to disagree, right to agree.
                   </p>
                 </article>
               ) : null}
