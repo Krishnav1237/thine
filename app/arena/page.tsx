@@ -88,9 +88,9 @@ export default function ArenaPage() {
     null
   );
 
-  const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const exitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const shareTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const revealTimerRef = useRef<number | null>(null);
+  const exitTimerRef = useRef<number | null>(null);
+  const shareTimerRef = useRef<number | null>(null);
   const dragXRef = useRef(0);
   const pointerCapturedRef = useRef(false);
   const pointerStartRef = useRef<{
@@ -200,13 +200,13 @@ export default function ArenaPage() {
   useEffect(() => {
     return () => {
       if (revealTimerRef.current) {
-        clearTimeout(revealTimerRef.current);
+        window.clearTimeout(revealTimerRef.current);
       }
       if (exitTimerRef.current) {
-        clearTimeout(exitTimerRef.current);
+        window.clearTimeout(exitTimerRef.current);
       }
       if (shareTimerRef.current) {
-        clearTimeout(shareTimerRef.current);
+        window.clearTimeout(shareTimerRef.current);
       }
     };
   }, []);
@@ -223,7 +223,7 @@ export default function ArenaPage() {
   const advanceTake = (direction: CardStage) => {
     setCardStage(direction);
 
-    exitTimerRef.current = setTimeout(() => {
+    exitTimerRef.current = window.setTimeout(() => {
       setCurrentIndex((prev) => prev + 1);
       resetTakeState();
     }, EXIT_DURATION_MS);
@@ -235,10 +235,10 @@ export default function ArenaPage() {
     }
 
     if (revealTimerRef.current) {
-      clearTimeout(revealTimerRef.current);
+      window.clearTimeout(revealTimerRef.current);
     }
     if (exitTimerRef.current) {
-      clearTimeout(exitTimerRef.current);
+      window.clearTimeout(exitTimerRef.current);
     }
 
     setSelectedAnswer(answer);
@@ -252,7 +252,7 @@ export default function ArenaPage() {
     setSessionResponses((prev) => [...prev, response]);
     persistResponse(response);
 
-    revealTimerRef.current = setTimeout(() => {
+    revealTimerRef.current = window.setTimeout(() => {
       if (currentIndex >= totalTakes - 1) {
         setPhase("summary");
         return;
@@ -268,7 +268,7 @@ export default function ArenaPage() {
     }, REVEAL_DURATION_MS);
   };
 
-  const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
+  const handlePointerDown = (event: PointerEvent<HTMLElement>) => {
     if (answersLocked) {
       return;
     }
@@ -284,7 +284,7 @@ export default function ArenaPage() {
     dragXRef.current = 0;
   };
 
-  const handlePointerMove = (event: PointerEvent<HTMLDivElement>) => {
+  const handlePointerMove = (event: PointerEvent<HTMLElement>) => {
     if (!pointerStartRef.current || answersLocked) {
       return;
     }
@@ -316,7 +316,7 @@ export default function ArenaPage() {
     }
   };
 
-  const handlePointerUp = (event?: PointerEvent<HTMLDivElement>) => {
+  const handlePointerUp = (event?: PointerEvent<HTMLElement>) => {
     if (!pointerStartRef.current || answersLocked) {
       pointerStartRef.current = null;
       setIsDragging(false);
@@ -368,7 +368,7 @@ export default function ArenaPage() {
       await navigator.clipboard.writeText(`${shareText} ${shareLink}`);
       setShareStatus("copied");
       if (shareTimerRef.current) {
-        clearTimeout(shareTimerRef.current);
+        window.clearTimeout(shareTimerRef.current);
       }
       shareTimerRef.current = window.setTimeout(
         () => setShareStatus("idle"),
@@ -381,13 +381,13 @@ export default function ArenaPage() {
 
   const handleRestart = () => {
     if (revealTimerRef.current) {
-      clearTimeout(revealTimerRef.current);
+      window.clearTimeout(revealTimerRef.current);
     }
     if (exitTimerRef.current) {
-      clearTimeout(exitTimerRef.current);
+      window.clearTimeout(exitTimerRef.current);
     }
     if (shareTimerRef.current) {
-      clearTimeout(shareTimerRef.current);
+      window.clearTimeout(shareTimerRef.current);
     }
     setDeck(buildDeck());
     setCurrentIndex(0);

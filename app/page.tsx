@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+
 import BrandHeader from "./components/BrandHeader";
 import ChallengeBanner from "./components/ChallengeBanner";
 import LandingCta from "./LandingCta";
@@ -31,7 +33,9 @@ export default function Home() {
         <BrandHeader />
 
         <main className="landing-main">
-          <ChallengeBanner />
+          <Suspense fallback={null}>
+            <ChallengeBanner />
+          </Suspense>
           <section className="landing-content">
             <div className="landing-badge">
               <svg
