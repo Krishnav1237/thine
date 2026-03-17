@@ -7,6 +7,7 @@ import ShareCardView from "./ShareCardView";
 
 type ShareSearchParams = Promise<{
   score?: string | string[];
+  name?: string | string[];
 }>;
 
 export async function generateMetadata({
@@ -28,6 +29,9 @@ export default async function SharePage({
 }) {
   const params = await searchParams;
   const score = parseScoreParam(params.score);
+  const rawName = Array.isArray(params.name) ? params.name[0] : params.name;
+  const name =
+    typeof rawName === "string" ? rawName.trim().slice(0, 32) : undefined;
 
-  return <ShareCardView score={score} />;
+  return <ShareCardView score={score} name={name} />;
 }

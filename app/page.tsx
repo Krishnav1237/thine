@@ -1,4 +1,5 @@
 import BrandHeader from "./components/BrandHeader";
+import ChallengeBanner from "./components/ChallengeBanner";
 import LandingCta from "./LandingCta";
 import { thineLinks } from "./lib/thine-links";
 
@@ -30,6 +31,7 @@ export default function Home() {
         <BrandHeader />
 
         <main className="landing-main">
+          <ChallengeBanner />
           <section className="landing-content">
             <div className="landing-badge">
               <svg

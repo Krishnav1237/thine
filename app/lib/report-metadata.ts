@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
-import { MAX_SCORE, getTier, normalizeScore } from "../data/questions";
+import { MAX_SCORE, normalizeScore } from "../data/questions";
+import { getScoreBand } from "./analyzeUser";
 
 export function buildReportMetadata(
   score: number,
@@ -8,9 +9,9 @@ export function buildReportMetadata(
   origin?: string
 ): Metadata {
   const normalizedScore = normalizeScore(score);
-  const tier = getTier(normalizedScore);
-  const title = `${tier.name} — ${normalizedScore}/${MAX_SCORE} | Personal Intelligence Score`;
-  const description = `I scored ${normalizedScore}/${MAX_SCORE} on Thine's Personal Intelligence diagnostic. My tier is ${tier.name}.`;
+  const band = getScoreBand(normalizedScore);
+  const title = `${band.name} — ${normalizedScore}/${MAX_SCORE} | Personal Intelligence Report`;
+  const description = `I scored ${normalizedScore}/${MAX_SCORE} on Thine's Personal Intelligence diagnostic. Category: ${band.name}.`;
   const baseUrl = origin?.replace(/\/$/, "");
   const resolvedUrl = baseUrl ? `${baseUrl}${pathname}` : pathname;
   const imageUrl = baseUrl

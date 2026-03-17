@@ -3,29 +3,60 @@ export interface Option {
   score: number;
 }
 
+export type DimensionKey = "memory" | "follow_up" | "consistency" | "awareness";
+
+export interface Dimension {
+  key: DimensionKey;
+  title: string;
+  description: string;
+  focusLabel: string;
+  focusDescription: string;
+}
+
 export interface Question {
   id: number;
   question: string;
+  dimension: DimensionKey;
   options: Option[];
 }
 
-export interface Tier {
-  name: string;
-  min: number;
-  max: number;
-  description: string;
-  tagline: string;
-  focus: string;
-  blindSpot: string;
-  unlock: string;
-  signals: string[];
-}
+export const dimensions: Dimension[] = [
+  {
+    key: "memory",
+    title: "Memory",
+    description: "How well decisions and details stay retrievable after the moment.",
+    focusLabel: "Memory & recall",
+    focusDescription: "Keep decisions, context, and insights easy to retrieve.",
+  },
+  {
+    key: "follow_up",
+    title: "Follow-up",
+    description: "How reliably commitments and promises close without slipping.",
+    focusLabel: "Follow-up & commitments",
+    focusDescription: "Make promises trackable and hard to forget.",
+  },
+  {
+    key: "consistency",
+    title: "Consistency",
+    description: "How steady your habits are for capturing and reviewing context.",
+    focusLabel: "Consistency & routine",
+    focusDescription: "Build repeatable habits that keep context alive.",
+  },
+  {
+    key: "awareness",
+    title: "Awareness",
+    description: "How aware you stay of relationship and project state.",
+    focusLabel: "Awareness & context",
+    focusDescription: "Stay warm on the people and projects that matter.",
+  },
+];
 
 export const questions: Question[] = [
   {
     id: 1,
     question:
       "You had an important meeting 3 weeks ago. How much do you remember?",
+    dimension: "memory",
     options: [
       {
         text: "Almost nothing — I'd need someone to remind me what it was even about",
@@ -43,6 +74,7 @@ export const questions: Question[] = [
     id: 2,
     question:
       "Someone made you a promise in a conversation last month. How do you track it?",
+    dimension: "follow_up",
     options: [
       { text: "I don't — if they forget, it's gone", score: 0 },
       { text: "I might remember if something reminds me", score: 1 },
@@ -54,6 +86,7 @@ export const questions: Question[] = [
     id: 3,
     question:
       "A friend mentions someone you met at a dinner 6 months ago. How fast can you recall your history with them?",
+    dimension: "awareness",
     options: [
       { text: "I'd have no idea who they're talking about", score: 0 },
       { text: "The name might ring a bell, but no details", score: 1 },
@@ -71,6 +104,7 @@ export const questions: Question[] = [
     id: 4,
     question:
       "After an important conversation, what do you do with the insights?",
+    dimension: "consistency",
     options: [
       { text: "Nothing — I move on to the next thing", score: 0 },
       {
@@ -88,6 +122,7 @@ export const questions: Question[] = [
     id: 5,
     question:
       "You need to recall a major decision you made and why. How confident are you?",
+    dimension: "memory",
     options: [
       {
         text: "I often forget why I made decisions — I just remember the outcome",
@@ -108,6 +143,7 @@ export const questions: Question[] = [
     id: 6,
     question:
       "You have a high-stakes call in 30 minutes with someone you haven't spoken to in a while. How do you prepare?",
+    dimension: "awareness",
     options: [
       {
         text: "I wing it and hope context comes back during the call",
@@ -128,6 +164,7 @@ export const questions: Question[] = [
     id: 7,
     question:
       "How often do you forget to follow up on something you said you'd do?",
+    dimension: "follow_up",
     options: [
       {
         text: "Frequently — things slip through the cracks all the time",
@@ -145,6 +182,7 @@ export const questions: Question[] = [
     id: 8,
     question:
       "It's Friday. Can you recall the most important insight from each conversation you had this week?",
+    dimension: "consistency",
     options: [
       { text: "I can barely remember what happened yesterday", score: 0 },
       { text: "I remember the big ones, but most are gone", score: 1 },
@@ -162,6 +200,7 @@ export const questions: Question[] = [
     id: 9,
     question:
       "Think about your 10 most important professional relationships. How well are you tracking the state of each one?",
+    dimension: "awareness",
     options: [
       {
         text: "I'm not tracking them at all — I react when they reach out",
@@ -185,6 +224,7 @@ export const questions: Question[] = [
     id: 10,
     question:
       "If you lost all your devices tomorrow, how much professional context would you lose forever?",
+    dimension: "consistency",
     options: [
       {
         text: "Almost everything — my memory IS my devices",
@@ -206,67 +246,7 @@ export const questions: Question[] = [
   },
 ];
 
-export const MAX_SCORE = questions.length * 3;
-
-export const tiers: Tier[] = [
-  {
-    name: "Flying Blind",
-    min: 0,
-    max: 10,
-    description:
-      "You are relying on raw memory to hold meetings, commitments, and relationship context together. That means important information vanishes the moment the room clears, and you keep paying the cost later.",
-    tagline: "You're operating your life and career without a durable context layer.",
-    focus:
-      "Most of your context is trapped in moments instead of being available when you need it again.",
-    blindSpot:
-      "Important follow-ups, decision rationale, and relationship threads disappear faster than you think.",
-    unlock:
-      "The next step is not more effort. It is one trusted system that remembers commitments and context for you.",
-    signals: [
-      "You walk into important conversations colder than you should.",
-      "You spend too much time reconstructing what already happened.",
-      "Promises and next steps depend on memory instead of infrastructure.",
-    ],
-  },
-  {
-    name: "Surviving on Talent",
-    min: 11,
-    max: 20,
-    description:
-      "You already compensate with intelligence and instinct, which is why things still look mostly fine from the outside. But context is still leaking, and you are spending real energy to recover what a better system would simply preserve.",
-    tagline: "Your instincts are carrying you, but the operating system underneath is still too manual.",
-    focus:
-      "You can recover context, but only through effort, searching, and remembering where fragments are stored.",
-    blindSpot:
-      "The hidden cost is time: every cold start, every inbox dig, every delayed follow-up compounds.",
-    unlock:
-      "You need a cleaner operating system that turns good habits into automatic recall and reliable follow-through.",
-    signals: [
-      "You can usually find the answer, but not instantly.",
-      "Your best relationships still rely on your personal vigilance.",
-      "You notice context loss even when other people do not.",
-    ],
-  },
-  {
-    name: "Operating Elite",
-    min: 21,
-    max: 30,
-    description:
-      "You already treat context like an advantage, not an afterthought. The remaining friction is not awareness, it is maintenance: you are still doing too much of the work manually, and your system should now start compounding for you.",
-    tagline: "You already think in systems. Now your context layer needs to move at the same speed you do.",
-    focus:
-      "You maintain a high-fidelity picture of decisions, relationships, and open loops most of the time.",
-    blindSpot:
-      "Your system still depends on manual upkeep, which means scale will eventually create drag.",
-    unlock:
-      "The next unlock is leverage: let the system surface patterns, priorities, and relationship state before they turn into work.",
-    signals: [
-      "You rarely lose the thread in important conversations.",
-      "You already understand why personal intelligence compounds.",
-      "You are ready for automation, not just better note-taking.",
-    ],
-  },
-];
+export const MAX_SCORE = 100;
 
 export function normalizeScore(score: number): number {
   if (!Number.isFinite(score)) {
@@ -283,14 +263,118 @@ export function parseScoreParam(
   return normalizeScore(Number.parseInt(candidate ?? "0", 10));
 }
 
-export function getTier(score: number): Tier {
-  const normalizedScore = normalizeScore(score);
-  return (
-    tiers.find((tier) => normalizedScore >= tier.min && normalizedScore <= tier.max) ??
-    tiers[0]
-  );
+export function computeScoreFromAnswers(answers: number[]): number {
+  const totalPossible = questions.length * 3;
+  const totalScore = answers.reduce((sum, value) => sum + value, 0);
+  const normalized = totalPossible > 0 ? (totalScore / totalPossible) * MAX_SCORE : 0;
+  return normalizeScore(normalized);
 }
 
-export function getSharePath(score: number): string {
-  return `/share?score=${normalizeScore(score)}`;
+export function getDimension(key: DimensionKey): Dimension {
+  return dimensions.find((dimension) => dimension.key === key) ?? dimensions[0];
+}
+
+function getBaseQuestionOrder(): number[] {
+  return questions.map((question) => question.id);
+}
+
+export function getQuestionOrder(focus?: DimensionKey): number[] {
+  if (!focus) {
+    return getBaseQuestionOrder();
+  }
+
+  const prioritized = questions
+    .filter((question) => question.dimension === focus)
+    .map((question) => question.id);
+  const remainder = questions
+    .filter((question) => question.dimension !== focus)
+    .map((question) => question.id);
+
+  return [...prioritized, ...remainder];
+}
+
+export function getQuestionsByOrder(order?: number[]): Question[] {
+  const baseOrder = getBaseQuestionOrder();
+  if (!order || order.length !== baseOrder.length) {
+    return questions;
+  }
+
+  const questionMap = new Map(questions.map((question) => [question.id, question]));
+  const resolved = order
+    .map((id) => questionMap.get(id) ?? null)
+    .filter((question): question is Question => Boolean(question));
+  const unique = new Set(resolved.map((question) => question.id));
+
+  if (resolved.length !== questions.length || unique.size !== questions.length) {
+    return questions;
+  }
+
+  return resolved;
+}
+
+export function reorderAnswersToBase(answers: number[], order?: number[]): number[] {
+  if (!order || order.length !== questions.length) {
+    return answers;
+  }
+
+  const indexById = new Map<number, number>();
+  order.forEach((id, index) => {
+    indexById.set(id, index);
+  });
+
+  return questions.map((question) => {
+    const answerIndex = indexById.get(question.id);
+    if (answerIndex === undefined) {
+      return 0;
+    }
+
+    const answer = answers[answerIndex];
+    return Number.isFinite(answer) ? Math.max(0, Math.min(3, answer)) : 0;
+  });
+}
+
+function lowercaseFirst(value: string): string {
+  if (!value) {
+    return value;
+  }
+
+  return value.charAt(0).toLowerCase() + value.slice(1);
+}
+
+export function getPersonalizedQuestion(
+  question: Question,
+  focus?: DimensionKey
+): string {
+  if (!focus) {
+    return question.question;
+  }
+
+  const focusLabel = getDimension(focus).title.toLowerCase();
+  const tailored = lowercaseFirst(question.question);
+
+  if (question.dimension === focus) {
+    return `In your ${focusLabel} layer, ${tailored}`;
+  }
+
+  return `Through the lens of ${focusLabel}, ${tailored}`;
+}
+
+function sanitizeShareName(value?: string): string | null {
+  if (!value || typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim().slice(0, 32);
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+export function getSharePath(score: number, name?: string): string {
+  const normalizedScore = normalizeScore(score);
+  const safeName = sanitizeShareName(name);
+
+  if (!safeName) {
+    return `/share?score=${normalizedScore}`;
+  }
+
+  return `/share?score=${normalizedScore}&name=${encodeURIComponent(safeName)}`;
 }

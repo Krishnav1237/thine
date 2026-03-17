@@ -1,6 +1,6 @@
 "use client";
 
-import { getTier, tiers } from "../data/questions";
+import { getScoreBand, scoreBands } from "../lib/analyzeUser";
 
 interface TierScaleProps {
   currentScore: number;
@@ -10,10 +10,10 @@ interface TierScaleProps {
 
 export default function TierScale({
   currentScore,
-  heading = "How the tiers stack up",
+  heading = "How the bands stack up",
   description = "Each band reflects how much of your professional context your current system preserves.",
 }: TierScaleProps) {
-  const activeTier = getTier(currentScore).name;
+  const activeBand = getScoreBand(currentScore).name;
 
   return (
     <section className="tier-scale-card" aria-label={heading}>
@@ -23,22 +23,22 @@ export default function TierScale({
       </div>
 
       <div className="tier-scale-list">
-        {tiers.map((tier) => {
-          const isActive = tier.name === activeTier;
+        {scoreBands.map((band) => {
+          const isActive = band.name === activeBand;
 
           return (
             <article
-              key={tier.name}
+              key={band.name}
               className={`tier-scale-row ${isActive ? "active" : ""}`}
               aria-current={isActive ? "true" : undefined}
             >
               <div className="tier-scale-main">
-                <div className="tier-scale-name">{tier.name}</div>
-                <p className="tier-scale-description">{tier.focus}</p>
+                <div className="tier-scale-name">{band.name}</div>
+                <p className="tier-scale-description">{band.focus}</p>
               </div>
 
               <div className="tier-scale-range">
-                {tier.min}-{tier.max}
+                {band.min}-{band.max}
               </div>
             </article>
           );

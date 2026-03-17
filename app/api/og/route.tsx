@@ -1,7 +1,8 @@
 import { ImageResponse } from "@vercel/og";
 import { NextRequest } from "next/server";
 
-import { MAX_SCORE, getTier, parseScoreParam, tiers } from "../../data/questions";
+import { MAX_SCORE, parseScoreParam } from "../../data/questions";
+import { getScoreBand, scoreBands } from "../../lib/analyzeUser";
 
 export const runtime = "edge";
 
@@ -12,7 +13,7 @@ const serifFont = fetch(
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const score = parseScoreParam(searchParams.get("score"));
-  const tier = getTier(score);
+  const band = getScoreBand(score);
   const serifData = await serifFont;
 
   return new ImageResponse(
@@ -94,7 +95,7 @@ export async function GET(request: NextRequest) {
                   maxWidth: "560px",
                 }}
               >
-                {tier.name}
+                {band.name}
               </div>
 
               <div
@@ -107,7 +108,7 @@ export async function GET(request: NextRequest) {
                   display: "flex",
                 }}
               >
-                {tier.tagline}
+                {band.tagline}
               </div>
             </div>
 
@@ -118,8 +119,8 @@ export async function GET(request: NextRequest) {
                 gap: "12px",
               }}
             >
-              {tiers.map((item) => {
-                const isActive = item.name === tier.name;
+              {scoreBands.map((item) => {
+                const isActive = item.name === band.name;
 
                 return (
                   <div
@@ -271,7 +272,7 @@ export async function GET(request: NextRequest) {
                     fontSize: "15px",
                   }}
                 >
-                  {tier.name}
+                  {band.name}
                 </div>
               </div>
 

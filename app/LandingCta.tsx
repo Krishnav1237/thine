@@ -16,8 +16,8 @@ export default function LandingCta() {
       setHasProgress(
         Boolean(
           session &&
-            session.answers.length > 0 &&
-            session.currentIndex < questions.length
+            session.currentIndex < questions.length &&
+            (session.answers.length > 0 || session.introCompleted)
         )
       );
     });
