@@ -102,6 +102,9 @@ export default function ShareCardView({
                 <Link href="/quiz" className="btn-primary">
                   Get Your Score
                 </Link>
+                <Link href="/arena" className="btn-secondary">
+                  Play Hot Takes Arena
+                </Link>
                 <a
                   href={thineLinks.share}
                   className="btn-secondary"

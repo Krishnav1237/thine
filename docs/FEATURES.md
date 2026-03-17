@@ -3,7 +3,7 @@
 A detailed breakdown of the new core systems that drive engagement, retention, and virality.
 
 ## 1. Hot Takes Arena (`/arena`)
-**The Hook**: High-speed, addictive "opinion play" that benchmarks you against the crowd.
+**The Hook**: The "Exposing Mirror"—a high-speed, addictive opinion play that reveals your cognitive default settings against the crowd.
 
 ### Technical Implementation:
 - **Swipe Physics**: Custom pointer-event logic for Tinder-style card interactions.

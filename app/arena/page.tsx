@@ -459,6 +459,9 @@ export default function ArenaPage() {
                 <a className="btn-secondary" href="/quiz">
                   Take the Test
                 </a>
+                <a className="btn-secondary" href="/">
+                  Return Home
+                </a>
               </div>
             </section>
           ) : (

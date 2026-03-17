@@ -236,6 +236,9 @@ export default function ResultsClient({ score }: { score: number }) {
           <Link href={sharePath} className="btn-secondary">
             Preview Scorecard
           </Link>
+          <Link href="/arena" className="btn-secondary">
+            Play Hot Takes Arena
+          </Link>
           <button onClick={handleRetake} className="btn-secondary" type="button">
             Retake in 3 Days
           </button>

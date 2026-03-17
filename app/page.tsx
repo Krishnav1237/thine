@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import Link from "next/link";
 
 import BrandHeader from "./components/BrandHeader";
 import ChallengeBanner from "./components/ChallengeBanner";
@@ -68,6 +69,9 @@ export default function Home() {
 
             <div className="landing-actions">
               <LandingCta />
+              <Link href="/arena" className="btn-secondary">
+                Play Hot Takes Arena
+              </Link>
               <a
                 href={thineLinks.landing}
                 className="btn-secondary"

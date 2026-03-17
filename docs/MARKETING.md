@@ -1,59 +1,51 @@
-# 🚀 Thine Marketing Strategy & Copy
+# 🚀 Thine Marketing Playbook (The Mirror Shift)
 
-Use this guide to launch and market the new features of Thine: **Hot Takes Arena**, **Social Battles**, and **Evolution Tracking**.
+Thine is no longer marketed as a "system." It is an **exposing mirror**. This shift drives higher emotional engagement and curiosity.
 
-## 🎯 The Core Narrative
-Thine is no longer just a test—it's a **Social Intelligence Game**. We're moving from "Do I have high PQ?" to "How do I rank against the crowd and my friends?"
+## 🎯 Positioning: "It's a Mirror"
+Instead of "Measure your intelligence," we use "**See how you actually think.**" This shifts the product from a utility to an identity reveal.
 
 ---
 
-## 🐦 Twitter (Viral Loops)
+## 🐦 Twitter (Performance Hook)
 
-### Option 1: The "Identity" Hook (Best for Arena)
-"90% of your industry colleagues are lying to themselves about their priorities.
+### Post: The "Self-Correction" Hook
+"You think you think for yourself. Most people don’t.
 
-I just took the **Hot Takes Arena** challenge on Thine. Turns out I’m a **[Insert Profile] Thinker**. 
+I just took the **Hot Takes Arena** challenge on Thine. Turns out I’m a [Insert Profile] Thinker. 
 
-Where do you land on the scale?
+This isn't a test. It's a mirror.
+
+See who you actually are:
 👇
 [Link to /arena]"
 
-### Option 2: The "Social Proof" Hook (Best for Comparisons)
-"Stop guessing who the smartest person in the room is.
+---
 
-Challenge your friends to a 1v1 Intelligence Battle on Thine. Real-time scoring, anonymous peer ratings, and zero bias.
+## 💼 LinkedIn (Judgment Edge)
 
-Who’s actually got the edge? 🥊
-[Link]"
+### Post: The Transparency of Decision-Making
+"In a world of consensus, the ability to think independently is rare.
+
+Thine's new **Hot Takes Arena** doesn't just score you—it exposes your cognitive default settings. 
+
+Are you leading the consensus or just following it?
+
+Check your signal: [Link]"
 
 ---
 
-## 💼 LinkedIn (Professional Growth)
+## 🟢 WhatsApp (Group Friction)
 
-### The "Judgment Evolution" Hook
-"The best leaders don't just have high IQ—they have consistent judgment.
-
-We’ve just launched **Intelligence Evolution Tracking** on Thine. You can now measure how your context-retention and decision-making 'compounds' over time.
-
-Plus, our new **Hot Takes Arena** lets you stress-test your professional opinions against the crowd. 
-
-Are you leading the consensus, or pushing against it?
-
-Try the new features: [Link]"
+### Message: The "Expose Them" Hook
+"Just tried the Arena on Thine. It turns out 70% of people are wrong about most things lol. Swipe through and see where you land. It's actually a mirror: [Link to /arena] 💀"
 
 ---
 
-## 🟢 WhatsApp (High Conversion)
-
-### Message 1: The Group Chat Disruptor
-"Guys, try this Arena thing on Thine real quick. It just told me I’m more of a 'Balanced Thinker' than most of you lot lol. Swipe through the takes and see what you get: [Link to /arena] 💀"
-
-### Message 2: The Direct Challenge
-"Yo, I just got my intelligence evolution report on Thine. I dare you to beat my current score. Here’s the challenge link: [Link] 🥊 Let's see who's actually paying attention."
+## 📽 Video Rule (The 1.5s Rule)
+Your video demo must stop the scroll in 1.5 seconds. Use the **Performance Script** in `docs/DEMO_SCRIPT.md` to ensure your first 5 seconds are loopable and "re-watchable".
 
 ---
 
-## 📸 Content Visuals
-1. **The 'Satisfying' Swipe**: Screen record 3-4 cards in the Arena. The motion is the hook.
-2. **The 'Evolution' Graph**: Share the line graph from your report. It signals "long-term value" rather than a one-off quiz.
-3. **The 'Contrarian' Reveal**: Highlight one specific take where you disagreed with the crowd.
+## 🥊 The Payoff
+Always end your content with the line: **"This is not a test. It's a mirror."**
