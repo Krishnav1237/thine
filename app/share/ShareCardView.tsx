@@ -1,8 +1,11 @@
 import Link from "next/link";
-
 import { MAX_SCORE } from "../data/questions";
 import { getScoreBand, scoreBands } from "../lib/analyzeUser";
 import { thineLinks } from "../lib/thine-links";
+
+// LEGACY SHARE ROUTE - query-param based, pre-Supabase.
+// Will be deprecated once all share flows use Supabase-backed /share/[id].
+// Do not add new features here. New share logic goes in /app/share/[score]/page.tsx.
 
 export default function ShareCardView({
   score,
@@ -10,7 +13,7 @@ export default function ShareCardView({
 }: {
   score: number;
   name?: string;
-}) {
+}): React.JSX.Element {
   const band = getScoreBand(score);
   const displayName = name?.trim();
 
@@ -61,7 +64,7 @@ export default function ShareCardView({
                   <span className="chip">
                     Band {band.min}-{band.max}
                   </span>
-                  <span className="chip">10-question diagnostic</span>
+                  <span className="chip">Public scorecard</span>
                 </div>
               </div>
             </div>

@@ -5,17 +5,25 @@ import type { ImprovementPlan } from "../lib/generatePlaybook";
 interface PlaybookCardProps {
   plan: ImprovementPlan;
   improvementLevel: string;
+  name?: string;
 }
 
-export default function PlaybookCard({ plan, improvementLevel }: PlaybookCardProps) {
+export default function PlaybookCard({
+  plan,
+  improvementLevel,
+  name,
+}: PlaybookCardProps): React.JSX.Element {
+  const heading = name ? `${name}'s next 72 hours.` : "Your next 72 hours.";
+  const levelCopy = name
+    ? `Level: ${improvementLevel}. Follow this sequence and retake in 3 days.`
+    : `Level: ${improvementLevel}. Follow this sequence and retake in 3 days.`;
+
   return (
     <section className="report-card playbook-card">
       <div className="section-heading">
         <span className="section-eyebrow">3-day improvement plan</span>
-        <h2 className="conversion-title">Your next 72 hours.</h2>
-        <p className="section-copy">
-          Level: {improvementLevel}. Follow this sequence and retake in 3 days.
-        </p>
+        <h2 className="conversion-title">{heading}</h2>
+        <p className="section-copy">{levelCopy}</p>
       </div>
 
       <div className="playbook-grid">

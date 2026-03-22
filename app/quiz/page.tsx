@@ -4,17 +4,22 @@ import { startTransition, useCallback, useEffect, useRef, useState } from "react
 import { useRouter } from "next/navigation";
 
 import BrandHeader from "../components/BrandHeader";
+import DailyPackBadge from "../components/DailyPackBadge";
 import {
+  DEFAULT_QUIZ_MODE,
   MAX_SCORE,
   computeScoreFromAnswers,
   dimensions,
   getDimension,
+  getDailyQuestionOrder,
   getPersonalizedQuestion,
-  getQuestionOrder,
   getQuestionsByOrder,
   questions,
+  QUIZ_SESSION_PRESETS,
   type DimensionKey,
+  type QuizSessionMode,
 } from "../data/questions";
+import { getDailySeed, getLocalDateKey } from "../lib/daily-pack";
 import {
   clearQuizSession,
   readQuizSession,
@@ -22,6 +27,7 @@ import {
   writeQuizSession,
 } from "../lib/quiz-session";
 import { registerChallengeCompletion } from "../lib/challenge";
+import { recordDailyActivity } from "../lib/retention";
 
 export default function QuizPage() {
   const router = useRouter();
@@ -40,17 +46,37 @@ export default function QuizPage() {
   const [draftRole, setDraftRole] = useState("");
   const [draftFocus, setDraftFocus] = useState<DimensionKey | null>(null);
   const [questionOrder, setQuestionOrder] = useState<number[] | null>(null);
+  const [sessionMode, setSessionMode] = useState<QuizSessionMode>(
+    DEFAULT_QUIZ_MODE
+  );
+  const [dailyKey, setDailyKey] = useState(() => getLocalDateKey());
+  const [dailySeed, setDailySeed] = useState(() => getDailySeed());
 
   const rolePlaceholder = "Founder, PM, Partner, Designer...";
-  const questionCount = questionOrder?.length ?? questions.length;
+  const sessionPreset = QUIZ_SESSION_PRESETS[sessionMode];
+  const questionCount = questionOrder?.length ?? sessionPreset.count;
 
   useEffect(() => {
     const frameId = window.requestAnimationFrame(() => {
-      const savedSession = readQuizSession();
+      const todayKey = getLocalDateKey();
+      const todaySeed = getDailySeed(todayKey);
+      let savedSession = readQuizSession();
+
+      setDailyKey(todayKey);
+      setDailySeed(todaySeed);
+
+      if (savedSession?.dailyKey && savedSession.dailyKey !== todayKey) {
+        clearQuizSession();
+        savedSession = null;
+      }
 
       if (savedSession) {
         const savedOrder = savedSession.questionOrder ?? null;
-        const totalQuestions = savedOrder?.length ?? questions.length;
+        const resolvedMode = savedSession.sessionMode ?? DEFAULT_QUIZ_MODE;
+        const totalQuestions =
+          savedOrder?.length ?? QUIZ_SESSION_PRESETS[resolvedMode].count;
+
+        setSessionMode(resolvedMode);
 
         if (
           savedSession.currentIndex >= totalQuestions &&
@@ -69,9 +95,18 @@ export default function QuizPage() {
         if (savedOrder) {
           setQuestionOrder(savedOrder);
         } else if (savedSession.answers.length > 0) {
-          setQuestionOrder(getQuestionOrder());
-        } else if (savedSession.profile?.focus) {
-          setQuestionOrder(getQuestionOrder(savedSession.profile.focus));
+          const legacyOrder = questions
+            .slice(0, QUIZ_SESSION_PRESETS[DEFAULT_QUIZ_MODE].count)
+            .map((question) => question.id);
+          setQuestionOrder(legacyOrder);
+        } else {
+          setQuestionOrder(
+            getDailyQuestionOrder({
+              count: QUIZ_SESSION_PRESETS[resolvedMode].count,
+              focus: savedSession.profile?.focus,
+              seed: todaySeed,
+            })
+          );
         }
         if (savedSession.profile) {
           setProfile(savedSession.profile);
@@ -82,7 +117,13 @@ export default function QuizPage() {
         if (savedSession.introCompleted || savedSession.profile) {
           setIntroCompleted(true);
           if (!savedOrder && savedSession.answers.length === 0) {
-            setQuestionOrder(getQuestionOrder(savedSession.profile?.focus));
+            setQuestionOrder(
+              getDailyQuestionOrder({
+                count: QUIZ_SESSION_PRESETS[resolvedMode].count,
+                focus: savedSession.profile?.focus,
+                seed: todaySeed,
+              })
+            );
           }
         }
       }
@@ -106,8 +147,19 @@ export default function QuizPage() {
       profile: profile ?? undefined,
       introCompleted,
       questionOrder: questionOrder ?? undefined,
+      sessionMode,
+      dailyKey,
     });
-  }, [answers, currentIndex, introCompleted, isReady, profile, questionOrder]);
+  }, [
+    answers,
+    currentIndex,
+    dailyKey,
+    introCompleted,
+    isReady,
+    profile,
+    questionOrder,
+    sessionMode,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -145,8 +197,11 @@ export default function QuizPage() {
           profile: profile ?? undefined,
           introCompleted,
           questionOrder: questionOrder ?? undefined,
+          sessionMode,
+          dailyKey,
         });
 
+        recordDailyActivity("quiz");
         registerChallengeCompletion();
 
         startTransition(() => {
@@ -164,6 +219,8 @@ export default function QuizPage() {
       questionCount,
       questionOrder,
       router,
+      sessionMode,
+      dailyKey,
     ]
   );
 
@@ -206,6 +263,13 @@ export default function QuizPage() {
     setQuestionOrder(null);
   }, [isReady, isTransitioning]);
 
+  const handleSessionModeChange = (mode: QuizSessionMode) => {
+    if (!isReady || isTransitioning) {
+      return;
+    }
+    setSessionMode(mode);
+  };
+
   const handleProfileContinue = useCallback(() => {
     if (!isReady || isTransitioning || !draftFocus) {
       return;
@@ -219,8 +283,22 @@ export default function QuizPage() {
 
     setProfile(nextProfile);
     setIntroCompleted(true);
-    setQuestionOrder(getQuestionOrder(draftFocus));
-  }, [draftFocus, draftName, draftRole, isReady, isTransitioning]);
+    setQuestionOrder(
+      getDailyQuestionOrder({
+        count: sessionPreset.count,
+        focus: draftFocus ?? undefined,
+        seed: dailySeed,
+      })
+    );
+  }, [
+    dailySeed,
+    draftFocus,
+    draftName,
+    draftRole,
+    isReady,
+    isTransitioning,
+    sessionPreset.count,
+  ]);
 
   const handleProfileSkip = useCallback(() => {
     if (!isReady || isTransitioning) {
@@ -228,8 +306,10 @@ export default function QuizPage() {
     }
 
     setIntroCompleted(true);
-    setQuestionOrder(getQuestionOrder());
-  }, [isReady, isTransitioning]);
+    setQuestionOrder(
+      getDailyQuestionOrder({ count: sessionPreset.count, seed: dailySeed })
+    );
+  }, [dailySeed, isReady, isTransitioning, sessionPreset.count]);
 
   const orderedQuestions = getQuestionsByOrder(questionOrder ?? undefined);
   const question = orderedQuestions[currentIndex];
@@ -294,6 +374,10 @@ export default function QuizPage() {
           </div>
 
           <section className="quiz-frame">
+            <div className="quiz-score-range">
+              Score range: 0 to {MAX_SCORE}. Higher means more of your context
+              survives beyond the moment.
+            </div>
             <div className="progress-container">
               <div className="progress-label">
                 <span>
@@ -326,6 +410,41 @@ export default function QuizPage() {
                     This adds a quick context layer so your results read like a
                     brief, not just a score. Everything is stored locally.
                   </p>
+                </div>
+
+                <div className="session-mode-row">
+                  <div className="session-mode-top">
+                    <div className="session-mode-left">
+                      <span className="session-mode-label">Session length</span>
+                      <DailyPackBadge />
+                    </div>
+                    <div className="session-mode-toggle" role="tablist">
+                      {Object.entries(QUIZ_SESSION_PRESETS).map(
+                        ([modeKey, preset]) => {
+                          const mode = modeKey as QuizSessionMode;
+                          const isActive = sessionMode === mode;
+
+                          return (
+                            <button
+                              key={modeKey}
+                              type="button"
+                              className={`session-mode-btn ${
+                                isActive ? "is-active" : ""
+                              }`}
+                              onClick={() => handleSessionModeChange(mode)}
+                              aria-pressed={isActive}
+                            >
+                              {preset.label}
+                              <span>{preset.count} Qs</span>
+                            </button>
+                          );
+                        }
+                      )}
+                    </div>
+                  </div>
+                  <span className="session-mode-note">
+                    {sessionPreset.description}
+                  </span>
                 </div>
 
                 <div className="profile-grid">
@@ -445,10 +564,6 @@ export default function QuizPage() {
             ) : null}
           </section>
 
-          <div className="quiz-footer-note">
-            Score range: 0 to {MAX_SCORE}. Higher means more of your context
-            survives beyond the moment.
-          </div>
         </main>
       </div>
     </div>

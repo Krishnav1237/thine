@@ -84,4 +84,104 @@ export const HOT_TAKES: HotTake[] = [
     id: 20,
     text: "AI will make average taste more valuable",
   },
+  {
+    id: 21,
+    text: "Most status updates are performative, not useful",
+  },
+  {
+    id: 22,
+    text: "If everything is urgent, nothing is",
+  },
+  {
+    id: 23,
+    text: "Clarity beats charisma in leadership",
+  },
+  {
+    id: 24,
+    text: "The best managers write more than they talk",
+  },
+  {
+    id: 25,
+    text: "Process is just culture with documentation",
+  },
+  {
+    id: 26,
+    text: "If you can't say no, you don't have a strategy",
+  },
+  {
+    id: 27,
+    text: "MVPs fail because they are too polished",
+  },
+  {
+    id: 28,
+    text: "Teams move faster when they ship on Mondays, not Fridays",
+  },
+  {
+    id: 29,
+    text: "Async communication is underrated for hard problems",
+  },
+  {
+    id: 30,
+    text: "You don't need more tools, you need fewer decisions",
+  },
+  {
+    id: 31,
+    text: "Memory is a liability in growing teams",
+  },
+  {
+    id: 32,
+    text: "The most valuable meetings are the ones you cancel",
+  },
+  {
+    id: 33,
+    text: "Your calendar reveals your real priorities",
+  },
+  {
+    id: 34,
+    text: "Great onboarding is more valuable than great recruiting",
+  },
+  {
+    id: 35,
+    text: "High standards beat high velocity over a year",
+  },
+  {
+    id: 36,
+    text: "Most \"urgent\" follow-ups are actually avoidance",
+  },
+  {
+    id: 37,
+    text: "A tiny daily habit beats quarterly planning",
+  },
+  {
+    id: 38,
+    text: "Metrics without narratives create bad decisions",
+  },
+  {
+    id: 39,
+    text: "Trust is built more by follow-through than by charm",
+  },
+  {
+    id: 40,
+    text: "If a product needs a tutorial, it's not ready",
+  },
+  {
+    id: 41,
+    text: "In startups, morale is a product feature",
+  },
+  {
+    id: 42,
+    text: "Silence after a meeting is a red flag",
+  },
+  {
+    id: 43,
+    text: "If you can't delegate it, you don't own it",
+  },
+  {
+    id: 44,
+    text: "Fewer meetings create better writing",
+  },
+  {
+    id: 45,
+    text: "Consistency beats intensity for long-term output",
+  },
 ];

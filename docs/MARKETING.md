@@ -1,51 +1,42 @@
-# 🚀 Thine Marketing Playbook (The Mirror Shift)
+# Thine Marketing Playbook
 
-Thine is no longer marketed as a "system." It is an **exposing mirror**. This shift drives higher emotional engagement and curiosity.
+Position Thine as the fastest way to reveal how people actually operate, then turn that insight into a streak, rank, and shareable identity.
 
-## 🎯 Positioning: "It's a Mirror"
-Instead of "Measure your intelligence," we use "**See how you actually think.**" This shifts the product from a utility to an identity reveal.
-
----
-
-## 🐦 Twitter (Performance Hook)
-
-### Post: The "Self-Correction" Hook
-"You think you think for yourself. Most people don’t.
-
-I just took the **Hot Takes Arena** challenge on Thine. Turns out I’m a [Insert Profile] Thinker. 
-
-This isn't a test. It's a mirror.
-
-See who you actually are:
-👇
-[Link to /arena]"
+## Positioning
+Core line: **“See how you actually work.”**  
+Alternate: **“Memory isn’t a system. Get a real score.”**
 
 ---
 
-## 💼 LinkedIn (Judgment Edge)
+## X (Twitter)
+**Post: Fast, social proof hook**
+“I took the Thine diagnostic and got a real score on memory + follow‑through.  
+Then I ran Hot Takes Arena, got my thinking profile, and locked in my streak.
 
-### Post: The Transparency of Decision-Making
-"In a world of consensus, the ability to think independently is rare.
-
-Thine's new **Hot Takes Arena** doesn't just score you—it exposes your cognitive default settings. 
-
-Are you leading the consensus or just following it?
-
-Check your signal: [Link]"
+Take 2 minutes: [Link to /quiz]”
 
 ---
 
-## 🟢 WhatsApp (Group Friction)
+## LinkedIn
+**Post: Professional framing**
+“Most teams lose context because memory is doing the work.  
+Thine gives you a Personal Intelligence Score, a 3‑day improvement plan, and a leaderboard track for compounding the habit.
 
-### Message: The "Expose Them" Hook
-"Just tried the Arena on Thine. It turns out 70% of people are wrong about most things lol. Swipe through and see where you land. It's actually a mirror: [Link to /arena] 💀"
-
----
-
-## 📽 Video Rule (The 1.5s Rule)
-Your video demo must stop the scroll in 1.5 seconds. Use the **Performance Script** in `docs/DEMO_SCRIPT.md` to ensure your first 5 seconds are loopable and "re-watchable".
+Try it: [Link to /quiz]”
 
 ---
 
-## 🥊 The Payoff
-Always end your content with the line: **"This is not a test. It's a mirror."**
+## WhatsApp / Group Chats
+**Message: Lightweight share**
+“Quick one: Thine gives you a Personal Intelligence Score in 2 minutes.  
+I shared mine, unlocked the full analysis path, and now I’m tracking my streak. Try it: [Link to /quiz]”
+
+---
+
+## Video Rule
+Your demo must stop the scroll in 1.5 seconds. Use `docs/DEMO_SCRIPT.md`.
+
+---
+
+## Close
+End every asset with a clear CTA: **“Get your score.”** or **“See your profile.”**

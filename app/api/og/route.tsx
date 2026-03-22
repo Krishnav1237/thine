@@ -1,18 +1,158 @@
 import { ImageResponse } from "@vercel/og";
 import { NextRequest } from "next/server";
+import { readFile } from "node:fs/promises";
 
 import { MAX_SCORE, parseScoreParam } from "../../data/questions";
-import { getScoreBand, scoreBands } from "../../lib/analyzeUser";
+import { getScoreBand } from "../../lib/analyzeUser";
 
-const serifFont = fetch(
+const serifFont = readFile(
   new URL("../../../public/fonts/IMFeGPrm28P.ttf", import.meta.url)
-).then((response) => response.arrayBuffer());
+);
+
+function cleanText(value: string | null, max = 42) {
+  return value?.trim().slice(0, max) || undefined;
+}
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
+  const type = searchParams.get("type") === "arena" ? "arena" : "quiz";
+  const serifData = await serifFont;
+
+  if (type === "arena") {
+    const profile = cleanText(searchParams.get("profile")) ?? "Nuanced Thinker";
+    const name = cleanText(searchParams.get("name"));
+
+    return new ImageResponse(
+      (
+        <div
+          style={{
+            width: "100%",
+            height: "100%",
+            display: "flex",
+            background:
+              "radial-gradient(circle at top left, rgba(255,98,98,0.26), transparent 34%), linear-gradient(180deg, #090909, #020202)",
+            color: "#ffffff",
+            padding: "64px",
+            position: "relative",
+            overflow: "hidden",
+          }}
+        >
+          <div
+            style={{
+              position: "absolute",
+              inset: "58% -8% -12% 52%",
+              background: "rgba(244,151,82,0.12)",
+              borderRadius: "999px",
+            }}
+          />
+
+          <div
+            style={{
+              width: "100%",
+              height: "100%",
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "space-between",
+              position: "relative",
+            }}
+          >
+            <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
+              <div
+                style={{
+                  display: "flex",
+                  fontSize: "18px",
+                  letterSpacing: "0.28em",
+                  textTransform: "uppercase",
+                  color: "#f49752",
+                }}
+              >
+                Hot Takes Arena
+              </div>
+              {name ? (
+                <div
+                  style={{
+                    display: "flex",
+                    fontSize: "28px",
+                    color: "rgba(255,255,255,0.74)",
+                  }}
+                >
+                  {name}
+                </div>
+              ) : null}
+              <div
+                style={{
+                  display: "flex",
+                  maxWidth: "860px",
+                  fontFamily: "IM Fell Great Primer",
+                  fontSize: "122px",
+                  lineHeight: 0.9,
+                }}
+              >
+                {profile}
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  fontSize: "32px",
+                  color: "rgba(255,255,255,0.72)",
+                }}
+              >
+                What&apos;s your thinking style?
+              </div>
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  fontSize: "26px",
+                  color: "rgba(255,255,255,0.72)",
+                }}
+              >
+                thine.app/arena
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  padding: "14px 22px",
+                  borderRadius: "999px",
+                  background: "rgba(255,255,255,0.06)",
+                  border: "1px solid rgba(255,255,255,0.14)",
+                  color: "#f49752",
+                  fontSize: "18px",
+                  letterSpacing: "0.18em",
+                  textTransform: "uppercase",
+                }}
+              >
+                Shareable profile
+              </div>
+            </div>
+          </div>
+        </div>
+      ),
+      {
+        width: 1200,
+        height: 630,
+        fonts: [
+          {
+            name: "IM Fell Great Primer",
+            data: serifData,
+            style: "normal",
+          },
+        ],
+      }
+    );
+  }
+
   const score = parseScoreParam(searchParams.get("score"));
   const band = getScoreBand(score);
-  const serifData = await serifFont;
+  const name = cleanText(searchParams.get("name"));
 
   return new ImageResponse(
     (
@@ -21,9 +161,10 @@ export async function GET(request: NextRequest) {
           width: "100%",
           height: "100%",
           display: "flex",
-          background: "#050505",
+          background:
+            "radial-gradient(circle at top left, rgba(244,151,82,0.24), transparent 34%), linear-gradient(180deg, #070707, #030303)",
           color: "#ffffff",
-          padding: "48px",
+          padding: "56px",
           position: "relative",
           overflow: "hidden",
         }}
@@ -31,16 +172,8 @@ export async function GET(request: NextRequest) {
         <div
           style={{
             position: "absolute",
-            inset: "-20% 45% 35% -10%",
-            background: "rgba(244, 151, 82, 0.16)",
-            borderRadius: "999px",
-          }}
-        />
-        <div
-          style={{
-            position: "absolute",
-            inset: "55% -12% -18% 55%",
-            background: "rgba(255, 255, 255, 0.06)",
+            inset: "58% -8% -12% 52%",
+            background: "rgba(255,255,255,0.06)",
             borderRadius: "999px",
           }}
         />
@@ -50,7 +183,8 @@ export async function GET(request: NextRequest) {
             width: "100%",
             height: "100%",
             display: "flex",
-            gap: "32px",
+            justifyContent: "space-between",
+            gap: "42px",
             position: "relative",
           }}
         >
@@ -60,50 +194,49 @@ export async function GET(request: NextRequest) {
               display: "flex",
               flexDirection: "column",
               justifyContent: "space-between",
-              padding: "12px 0",
             }}
           >
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "18px",
-              }}
-            >
+            <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
               <div
                 style={{
-                  fontFamily: "sans-serif",
-                  fontSize: "16px",
-                  letterSpacing: "0.32em",
+                  display: "flex",
+                  fontSize: "18px",
+                  letterSpacing: "0.28em",
                   textTransform: "uppercase",
                   color: "#f49752",
-                  display: "flex",
                 }}
               >
-                THINE PERSONAL INTELLIGENCE
+                Thine
               </div>
-
+              {name ? (
+                <div
+                  style={{
+                    display: "flex",
+                    fontSize: "28px",
+                    color: "rgba(255,255,255,0.74)",
+                  }}
+                >
+                  {name}
+                </div>
+              ) : null}
               <div
                 style={{
-                  fontFamily: "IM Fell Great Primer",
-                  fontSize: "94px",
-                  lineHeight: 0.92,
-                  letterSpacing: "-0.03em",
                   display: "flex",
-                  maxWidth: "560px",
+                  maxWidth: "580px",
+                  fontFamily: "IM Fell Great Primer",
+                  fontSize: "108px",
+                  lineHeight: 0.9,
                 }}
               >
                 {band.name}
               </div>
-
               <div
                 style={{
-                  fontFamily: "sans-serif",
+                  display: "flex",
+                  maxWidth: "620px",
                   fontSize: "28px",
                   lineHeight: 1.45,
                   color: "rgba(255,255,255,0.72)",
-                  maxWidth: "620px",
-                  display: "flex",
                 }}
               >
                 {band.tagline}
@@ -113,79 +246,26 @@ export async function GET(request: NextRequest) {
             <div
               style={{
                 display: "flex",
-                flexDirection: "column",
-                gap: "12px",
+                gap: "14px",
+                flexWrap: "wrap",
               }}
             >
-              {scoreBands.map((item) => {
-                const isActive = item.name === band.name;
-
-                return (
-                  <div
-                    key={item.name}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "18px 22px",
-                      borderRadius: "28px",
-                      border: isActive
-                        ? "1px solid #f49752"
-                        : "1px solid rgba(255,255,255,0.12)",
-                      background: isActive
-                        ? "#f49752"
-                        : "rgba(255,255,255,0.05)",
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "6px",
-                        maxWidth: "420px",
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontFamily: "sans-serif",
-                          fontSize: "22px",
-                          fontWeight: 700,
-                          color: isActive ? "#050505" : "#ffffff",
-                          display: "flex",
-                        }}
-                      >
-                        {item.name}
-                      </div>
-                      <div
-                        style={{
-                          fontFamily: "sans-serif",
-                          fontSize: "15px",
-                          lineHeight: 1.4,
-                          color: isActive
-                            ? "rgba(5,5,5,0.78)"
-                            : "rgba(255,255,255,0.58)",
-                          display: "flex",
-                        }}
-                      >
-                        {item.focus}
-                      </div>
-                    </div>
-
-                    <div
-                      style={{
-                        fontFamily: "sans-serif",
-                        fontSize: "15px",
-                        letterSpacing: "0.22em",
-                        textTransform: "uppercase",
-                        color: isActive ? "rgba(5,5,5,0.8)" : "#f49752",
-                        display: "flex",
-                      }}
-                    >
-                      {item.min}-{item.max}
-                    </div>
-                  </div>
-                );
-              })}
+              {band.highlights.map((highlight) => (
+                <div
+                  key={highlight}
+                  style={{
+                    display: "flex",
+                    padding: "14px 20px",
+                    borderRadius: "999px",
+                    border: "1px solid rgba(255,255,255,0.14)",
+                    background: "rgba(255,255,255,0.05)",
+                    fontSize: "18px",
+                    color: "rgba(255,255,255,0.76)",
+                  }}
+                >
+                  {highlight}
+                </div>
+              ))}
             </div>
           </div>
 
@@ -202,33 +282,24 @@ export async function GET(request: NextRequest) {
                 display: "flex",
                 flexDirection: "column",
                 justifyContent: "space-between",
-                padding: "32px",
+                padding: "30px",
                 borderRadius: "36px",
                 background: "rgba(255,255,255,0.06)",
                 border: "1px solid rgba(255,255,255,0.12)",
-                boxShadow: "0 28px 60px rgba(0,0,0,0.35)",
               }}
             >
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "16px",
-                }}
-              >
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                 <div
                   style={{
-                    fontFamily: "sans-serif",
-                    fontSize: "15px",
-                    letterSpacing: "0.24em",
-                    textTransform: "uppercase",
-                    color: "rgba(255,255,255,0.55)",
                     display: "flex",
+                    fontSize: "15px",
+                    letterSpacing: "0.22em",
+                    textTransform: "uppercase",
+                    color: "rgba(255,255,255,0.58)",
                   }}
                 >
                   Score
                 </div>
-
                 <div
                   style={{
                     display: "flex",
@@ -238,73 +309,46 @@ export async function GET(request: NextRequest) {
                 >
                   <div
                     style={{
+                      display: "flex",
                       fontFamily: "IM Fell Great Primer",
                       fontSize: "180px",
                       lineHeight: 0.84,
-                      display: "flex",
                     }}
                   >
                     {score}
                   </div>
                   <div
                     style={{
-                      fontFamily: "sans-serif",
+                      display: "flex",
                       fontSize: "28px",
                       color: "rgba(255,255,255,0.52)",
-                      display: "flex",
                     }}
                   >
                     / {MAX_SCORE}
                   </div>
                 </div>
-
-                <div
-                  style={{
-                    display: "flex",
-                    alignSelf: "flex-start",
-                    padding: "12px 18px",
-                    borderRadius: "999px",
-                    background: "rgba(244, 151, 82, 0.18)",
-                    color: "#f8ba88",
-                    fontFamily: "sans-serif",
-                    fontSize: "15px",
-                  }}
-                >
-                  {band.name}
-                </div>
               </div>
 
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "14px",
-                }}
-              >
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                 <div
                   style={{
-                    fontFamily: "sans-serif",
-                    fontSize: "18px",
-                    lineHeight: 1.5,
-                    color: "rgba(255,255,255,0.7)",
                     display: "flex",
-                  }}
-                >
-                  10 questions on recall, commitments, and relationship
-                  context.
-                </div>
-
-                <div
-                  style={{
-                    fontFamily: "sans-serif",
                     fontSize: "16px",
-                    letterSpacing: "0.24em",
+                    letterSpacing: "0.22em",
                     textTransform: "uppercase",
                     color: "#f49752",
-                    display: "flex",
                   }}
                 >
-                  thine.com
+                  Can you beat this?
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    fontSize: "24px",
+                    color: "rgba(255,255,255,0.74)",
+                  }}
+                >
+                  thine.app
                 </div>
               </div>
             </div>
@@ -320,7 +364,6 @@ export async function GET(request: NextRequest) {
           name: "IM Fell Great Primer",
           data: serifData,
           style: "normal",
-          weight: 400,
         },
       ],
     }

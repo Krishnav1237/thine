@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import BrandHeader from "./components/BrandHeader";
 import ChallengeBanner from "./components/ChallengeBanner";
+import DailyCheckInCard from "./components/DailyCheckInCard";
 import LandingCta from "./LandingCta";
 import { thineLinks } from "./lib/thine-links";
 
@@ -54,7 +55,7 @@ export default function Home() {
                 <path d="M2 17l10 5 10-5" />
                 <path d="M2 12l10 5 10-5" />
               </svg>
-              10 Questions · 2 Minutes · Thine Diagnostic
+              Quick 10 / Deep 20 · Daily Pack
             </div>
 
             <h1 className="landing-title">
@@ -69,7 +70,7 @@ export default function Home() {
 
             <div className="landing-actions">
               <LandingCta />
-              <Link href="/arena" className="btn-secondary">
+              <Link href="/arena" className="btn-secondary btn-accent">
                 Play Hot Takes Arena
               </Link>
               <a
@@ -82,10 +83,11 @@ export default function Home() {
               </a>
             </div>
 
-            <p className="landing-note">
-              The quiz diagnoses the gap. The result page points people toward
-              how Thine closes it.
-            </p>
+            <div className="landing-checkin">
+              <DailyCheckInCard />
+            </div>
+
+
           </section>
 
           <section className="landing-grid" aria-label="What the quiz measures">

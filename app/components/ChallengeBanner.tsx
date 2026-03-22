@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo } from "react";
 
 import { readChallenge, storeChallenge, type ChallengeData } from "../lib/challenge";
 
@@ -15,30 +15,32 @@ function parseScore(value: string | null): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-export default function ChallengeBanner() {
+export default function ChallengeBanner(): React.JSX.Element | null {
   const searchParams = useSearchParams();
-  const [challenge, setChallenge] = useState<ChallengeData | null>(null);
+  const challengeFlag = searchParams.get("challenge");
+  const scoreParam = parseScore(searchParams.get("score"));
+  const nameParam = searchParams.get("name");
+  const refParam = searchParams.get("ref");
 
-  useEffect(() => {
-    const challengeFlag = searchParams.get("challenge");
-    const scoreParam = parseScore(searchParams.get("score"));
-    const nameParam = searchParams.get("name");
-    const refParam = searchParams.get("ref");
-
+  const challengeFromQuery = useMemo(() => {
     if (challengeFlag === "true" && scoreParam !== null) {
-      const nextChallenge: ChallengeData = {
+      return {
         challengerScore: scoreParam,
         challengerName: nameParam ? nameParam.trim().slice(0, 32) : undefined,
         ref: refParam ? refParam.trim() : undefined,
-      };
-
-      storeChallenge(nextChallenge);
-      setChallenge(nextChallenge);
-      return;
+      } as ChallengeData;
     }
+    return null;
+  }, [challengeFlag, scoreParam, nameParam, refParam]);
 
-    setChallenge(readChallenge());
-  }, [searchParams]);
+  const storedChallenge = readChallenge();
+  const challenge = challengeFromQuery ?? storedChallenge;
+
+  useEffect(() => {
+    if (challengeFromQuery) {
+      storeChallenge(challengeFromQuery);
+    }
+  }, [challengeFromQuery]);
 
   if (!challenge) {
     return null;

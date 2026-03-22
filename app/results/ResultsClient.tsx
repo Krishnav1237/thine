@@ -4,21 +4,23 @@ import Link from "next/link";
 import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import AuthPromptCard from "../components/auth/AuthPromptCard";
+import DailyCheckInCard from "../components/DailyCheckInCard";
 import PlaybookCard from "../components/PlaybookCard";
-import ResultCard from "../components/ResultCard";
+import RankBadge from "../components/shared/RankBadge";
+import ShareCard from "../components/shared/ShareCard";
+import StreakCounter from "../components/shared/StreakCounter";
+import XPAnimation from "../components/shared/XPAnimation";
 import {
+  DEFAULT_QUIZ_MODE,
   MAX_SCORE,
+  QUIZ_SESSION_PRESETS,
+  computeScoreFromAnswers,
   getDimension,
   getSharePath,
   normalizeScore,
-  reorderAnswersToBase,
 } from "../data/questions";
-import {
-  analyzeUser,
-  getPercentileCopy,
-  getScoreBand,
-  getScoreCategory,
-} from "../lib/analyzeUser";
+import { analyzeUser, getPercentileCopy, getScoreBand } from "../lib/analyzeUser";
 import {
   clearQuizSession,
   readQuizSession,
@@ -31,43 +33,92 @@ import {
   readChallengeCompletionCount,
   type ChallengeData,
 } from "../lib/challenge";
+import { shareResult } from "../lib/share-card";
+import {
+  readLocalPlayerStats,
+  saveQuizAttempt,
+  saveSharedResult,
+} from "../lib/supabase/sync";
+import type { Json, RankTier } from "../lib/supabase/types";
 import { thineLinks } from "../lib/thine-links";
+import { useAuth } from "../hooks/useAuth";
 
 const REQUIRED_CHALLENGE_COMPLETIONS = 3;
+const SHARE_UNLOCK_KEY = "thine-share-unlocked";
+const EMPTY_ANSWERS: number[] = [];
+
+interface QuizSyncState {
+  xpEarned: number;
+  bonusXP: number;
+  currentStreak: number;
+  longestStreak: number;
+  rankTier: RankTier;
+  totalXP: number;
+  piScore?: number;
+}
 
 export default function ResultsClient({ score }: { score: number }) {
   const router = useRouter();
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const shareCardRef = useRef<HTMLDivElement>(null);
+  const saveAttemptRef = useRef(false);
+  const savedShareUrlRef = useRef<string | null>(null);
+  const {
+    user,
+    profile: authProfile,
+    refreshProfile,
+  } = useAuth();
   const [toastMessage, setToastMessage] = useState("");
   const [showToast, setShowToast] = useState(false);
-  const [session, setSession] = useState<QuizSession | null>(null);
-  const [includeNameInShare, setIncludeNameInShare] = useState(false);
-  const [challenge, setChallenge] = useState<ChallengeData | null>(null);
-  const [refId, setRefId] = useState<string | null>(null);
-  const [completionCount, setCompletionCount] = useState(0);
-
-  const normalizedScore = normalizeScore(score);
-  const band = getScoreBand(normalizedScore);
-
-  useEffect(() => {
-    setSession(readQuizSession());
-  }, []);
-
-  useEffect(() => {
-    if (session?.profile?.name) {
-      setIncludeNameInShare(true);
+  const [session] = useState<QuizSession | null>(() => readQuizSession());
+  const [playerStats, setPlayerStats] = useState(() => readLocalPlayerStats());
+  const [quizSync, setQuizSync] = useState<QuizSyncState | null>(null);
+  const [xpBurst, setXpBurst] = useState(0);
+  const [savedShareUrl, setSavedShareUrl] = useState<string | null>(null);
+  const [includeNameInShare, setIncludeNameInShare] = useState(() =>
+    Boolean(readQuizSession()?.profile?.name)
+  );
+  const [challenge] = useState<ChallengeData | null>(() => readChallenge());
+  const [refId] = useState<string | null>(() => getOrCreateRefId());
+  const [completionCount] = useState(() =>
+    readChallengeCompletionCount(getOrCreateRefId())
+  );
+  const [bonusUnlocked, setBonusUnlocked] = useState(() => {
+    if (typeof window === "undefined") {
+      return false;
     }
-  }, [session?.profile?.name]);
 
-  useEffect(() => {
-    setChallenge(readChallenge());
-  }, []);
+    const raw = window.localStorage.getItem(SHARE_UNLOCK_KEY);
+    if (!raw) {
+      return false;
+    }
 
-  useEffect(() => {
-    const resolvedRef = getOrCreateRefId();
-    setRefId(resolvedRef);
-    setCompletionCount(readChallengeCompletionCount(resolvedRef));
-  }, []);
+    try {
+      const parsed = JSON.parse(raw) as { unlocked?: boolean; dateKey?: string };
+      return parsed?.unlocked === true || Boolean(parsed?.dateKey);
+    } catch {
+      return raw === "true";
+    }
+  });
+
+  const sessionScore = (() => {
+    if (!session?.answers?.length) {
+      return null;
+    }
+
+    const expectedCount =
+      session.questionOrder?.length ??
+      QUIZ_SESSION_PRESETS[session.sessionMode ?? DEFAULT_QUIZ_MODE].count;
+
+    if (session.answers.length < expectedCount) {
+      return null;
+    }
+
+    return computeScoreFromAnswers(session.answers);
+  })();
+
+  const normalizedScore = normalizeScore(sessionScore ?? score);
+  const band = getScoreBand(normalizedScore);
 
   useEffect(() => {
     return () => {
@@ -77,17 +128,74 @@ export default function ResultsClient({ score }: { score: number }) {
     };
   }, []);
 
-  const answers = session?.answers ?? [];
+  const answers = useMemo(
+    () => session?.answers ?? EMPTY_ANSWERS,
+    [session?.answers]
+  );
   const questionOrder = session?.questionOrder;
-  const baseAnswers = useMemo(
-    () => reorderAnswersToBase(answers, questionOrder),
-    [answers, questionOrder]
+  const analysis = useMemo(
+    () => analyzeUser(answers, normalizedScore, questionOrder),
+    [answers, normalizedScore, questionOrder]
   );
 
-  const analysis = useMemo(
-    () => analyzeUser(baseAnswers, normalizedScore),
-    [baseAnswers, normalizedScore]
-  );
+  useEffect(() => {
+    if (saveAttemptRef.current) {
+      return;
+    }
+
+    if (!session?.questionOrder?.length || sessionScore === null) {
+      return;
+    }
+
+    saveAttemptRef.current = true;
+
+    void saveQuizAttempt({
+      userId: user?.id ?? null,
+      dedupeKey: `quiz:${session.sessionMode ?? DEFAULT_QUIZ_MODE}:${session.questionOrder.join("-")}:${session.answers.join("-")}`,
+      sessionmode: session.sessionMode ?? DEFAULT_QUIZ_MODE,
+      score: normalizedScore,
+      max_score: MAX_SCORE,
+      normalized_score: normalizedScore,
+      score_band: band.name,
+      dimension_scores: analysis.dimensionScores as unknown as Json,
+      strengths: analysis.strengths as unknown as Json,
+      weakest_area: analysis.weakestArea,
+      answers: session.answers as unknown as Json,
+      question_order: session.questionOrder as unknown as Json,
+      timetakenseconds: null,
+    }).then((result) => {
+      if (!result) {
+        return;
+      }
+
+      setQuizSync(result);
+      setPlayerStats(readLocalPlayerStats());
+      setXpBurst(result.xpEarned);
+
+      if (user?.id) {
+        void refreshProfile();
+      }
+    });
+  }, [
+    analysis.dimensionScores,
+    analysis.strengths,
+    analysis.weakestArea,
+    band.name,
+    normalizedScore,
+    refreshProfile,
+    session,
+    sessionScore,
+    user?.id,
+  ]);
+
+  useEffect(() => {
+    if (!xpBurst) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => setXpBurst(0), 1800);
+    return () => window.clearTimeout(timer);
+  }, [xpBurst]);
 
   const sortedDimensions = useMemo(
     () => [...analysis.dimensionScores].sort((a, b) => b.percent - a.percent),
@@ -103,12 +211,11 @@ export default function ResultsClient({ score }: { score: number }) {
       ? Math.max(0, strongestDimension.percent - weakestDimensionScore.percent)
       : 0;
   const percentileCopy = getPercentileCopy(normalizedScore);
-  const category = getScoreCategory(normalizedScore);
   const bandSpan = band.max - band.min;
   const bandProgress =
     bandSpan > 0 ? Math.round(((normalizedScore - band.min) / bandSpan) * 100) : 0;
   const analysisUnlocked =
-    completionCount >= REQUIRED_CHALLENGE_COMPLETIONS;
+    bonusUnlocked && completionCount >= REQUIRED_CHALLENGE_COMPLETIONS;
   const weaknessLabel = weakestDimensionScore
     ? `${weakestDimension.title} (${weakestDimensionScore.percent}%)`
     : weakestDimension.title;
@@ -144,13 +251,75 @@ export default function ResultsClient({ score }: { score: number }) {
     }, 2400);
   };
 
+  const unlockBonus = () => {
+    setBonusUnlocked(true);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(
+        SHARE_UNLOCK_KEY,
+        JSON.stringify({ unlocked: true })
+      );
+    }
+  };
+
   const shareName = includeNameInShare ? session?.profile?.name : undefined;
+  const shareDisplayName = shareName?.trim();
   const sharePath = getSharePath(normalizedScore, shareName);
   const shareToggleDisabled = !session?.profile?.name;
   const challengePath = buildChallengePath(normalizedScore, shareName, refId);
+  const currentStreak =
+    authProfile?.current_streak ??
+    quizSync?.currentStreak ??
+    playerStats.currentStreak;
+  const longestStreak =
+    authProfile?.longest_streak ??
+    quizSync?.longestStreak ??
+    playerStats.longestStreak;
+  const totalXP =
+    authProfile?.total_xp ??
+    quizSync?.totalXP ??
+    playerStats.totalXP;
+  const rankTier =
+    (authProfile?.ranktier ??
+      quizSync?.rankTier ??
+      playerStats.rankTier ??
+      "bronze") as RankTier;
+  const sharePreviewHref = savedShareUrl ?? sharePath;
 
-  const copyChallengeLink = async (message: string) => {
-    const shareUrl = new URL(challengePath, window.location.origin).toString();
+  const resolveShareUrl = async () => {
+    const fallbackUrl = new URL(sharePath, window.location.origin).toString();
+
+    if (savedShareUrlRef.current) {
+      return savedShareUrlRef.current;
+    }
+
+    if (!user?.id) {
+      return fallbackUrl;
+    }
+
+    const sharedResultId = await saveSharedResult({
+      userId: user.id,
+      resulttype: "quiz",
+      score: normalizedScore,
+      score_band: band.name,
+      display_name: shareDisplayName ?? profile?.name ?? null,
+      dimension_scores: analysis.dimensionScores as unknown as Json,
+      thinking_profile: null,
+      stance_data: null,
+      shareimageurl: null,
+    });
+
+    const nextUrl = sharedResultId
+      ? new URL(`/share/${sharedResultId}`, window.location.origin).toString()
+      : fallbackUrl;
+    savedShareUrlRef.current = nextUrl;
+    setSavedShareUrl(nextUrl);
+    return nextUrl;
+  };
+
+  const copyShareLink = async (path: string, message: string) => {
+    const shareUrl = /^https?:\/\//i.test(path)
+      ? path
+      : new URL(path, window.location.origin).toString();
 
     try {
       await navigator.clipboard.writeText(shareUrl);
@@ -171,16 +340,43 @@ export default function ResultsClient({ score }: { score: number }) {
       }
 
       window.prompt("Copy this share link:", shareUrl);
-      showFeedback("Copy the link from the dialog.");
+      showFeedback(message);
     }
   };
 
   const handleShare = async () => {
-    await copyChallengeLink("Challenge link copied.");
+    const shareUrl = await resolveShareUrl();
+    await copyShareLink(shareUrl, "Link copied.");
+    unlockBonus();
+  };
+
+  const handleImageShare = async () => {
+    try {
+      const shareUrl = await resolveShareUrl();
+      const result = await shareResult({
+        cardRef: shareCardRef,
+        shareUrl,
+        title: shareDisplayName
+          ? `${shareDisplayName}'s Thine score`
+          : "Thine scorecard",
+        text: shareDisplayName
+          ? `${shareDisplayName} scored ${normalizedScore} in Thine.`
+          : `I scored ${normalizedScore} in Thine.`,
+        fileName: `thine-score-${normalizedScore}.png`,
+      });
+
+      showFeedback(result.message);
+      unlockBonus();
+    } catch {
+      const shareUrl = await resolveShareUrl();
+      await copyShareLink(shareUrl, "Link copied.");
+      unlockBonus();
+    }
   };
 
   const handleChallengeShare = async () => {
-    await copyChallengeLink("Challenge link copied.");
+    await copyShareLink(challengePath, "Link copied.");
+    unlockBonus();
   };
 
   const handleRetake = () => {
@@ -200,42 +396,152 @@ export default function ResultsClient({ score }: { score: number }) {
     profile?.name ? `Profile: ${profile.name}` : null,
     profile?.role ?? null,
     focusDimension ? focusCopy : null,
+    bonusUnlocked ? "Shared ✓" : null,
   ].filter((item): item is string => Boolean(item));
   const groupComparison =
     strongestDimension && weakestDimensionScore
       ? `Strongest signal: ${strongestDimension.title} (${strongestDimension.percent}%). Weakest: ${weakestDimension.title} (${weakestDimensionScore.percent}%). Gap: ${dimensionSpread}%.`
       : `Your lowest signal right now is ${weakestDimension.title}.`;
 
+
+  const title = profile?.name
+    ? `${profile.name}'s Intelligence Report`
+    : "Your Intelligence Report";
+  const eyebrow = profile?.name
+    ? `Personalized for ${profile.name}`
+    : "Your Intelligence Report";
+
   return (
     <main className="report-main">
-      <ResultCard
-        score={normalizedScore}
-        category={category}
-        percentileCopy={percentileCopy}
-        strengths={analysis.strengths}
-        weakness={weaknessLabel}
-        comparison={comparisonCopy}
-        name={profile?.name}
-        chips={profileChips}
-      />
+      <section className="report-card result-share-card">
+        <div className="result-share-grid">
+          <div className="result-share-summary">
+            <span className="section-eyebrow">{eyebrow}</span>
+            <h1 className="result-title">{title}</h1>
+            {profileChips.length > 0 ? (
+              <div className="chip-row result-chip-row">
+                {profileChips.map((chip) => (
+                  <span key={chip} className="chip">
+                    {chip}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+
+            <div className="result-meta">
+              <p className="result-percentile">{percentileCopy}</p>
+              {comparisonCopy ? (
+                <p className="result-compare">{comparisonCopy}</p>
+              ) : null}
+            </div>
+
+            <div className="result-achievement-row">
+              <StreakCounter
+                currentStreak={currentStreak}
+                longestStreak={longestStreak}
+                compact
+              />
+              <RankBadge tier={rankTier} totalXP={totalXP} />
+            </div>
+
+            <div className="result-grid">
+              <div className="result-block">
+                <span className="section-eyebrow">Strengths</span>
+                <ul className="result-list">
+                  {analysis.strengths.map((strength) => (
+                    <li key={strength}>{strength}</li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="result-block">
+                <span className="section-eyebrow">Weakness</span>
+                <p className="result-weakness">{weaknessLabel}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="result-share-preview">
+            {xpBurst ? (
+              <XPAnimation
+                xpAmount={xpBurst}
+                bonusText={quizSync?.bonusXP ? "Streak bonus" : undefined}
+                visible={xpBurst > 0}
+              />
+            ) : null}
+            <div className="share-spotlight-card">
+              {shareDisplayName ? (
+                <span className="share-spotlight-name">
+                  For {shareDisplayName}
+                </span>
+              ) : null}
+              <div className="share-spotlight-score">
+                {normalizedScore}
+                <span>/ {MAX_SCORE}</span>
+              </div>
+              <div className="share-spotlight-band">
+                <span className="section-eyebrow">Category</span>
+                <h3>{band.name}</h3>
+                <p>{band.tagline}</p>
+              </div>
+              <div className="share-spotlight-chip-row">
+                <span className="chip">
+                  Band {band.min}-{band.max}
+                </span>
+                <span className="chip">Public scorecard</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="result-share-actions">
+          <div className="result-share-cta">
+            <span className="section-eyebrow">Share your scorecard</span>
+            <p className="section-copy">
+              Share your scorecard so friends can compare and unlock the full
+              analysis.
+            </p>
+          </div>
+          <div className="share-spotlight-actions">
+            <button onClick={handleShare} className="btn-primary" type="button">
+              Share result
+            </button>
+            <button
+              onClick={handleImageShare}
+              className="btn-secondary"
+              type="button"
+            >
+              Share as image
+            </button>
+            <a href={sharePreviewHref} className="btn-secondary">
+              Preview
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <AuthPromptCard sourcePage="results" xpEarned={quizSync?.xpEarned ?? 0} />
+
+      <DailyCheckInCard name={profile?.name} context="results" />
 
       <section className="report-card action-card">
         <div className="section-heading">
           <span className="section-eyebrow">Next steps</span>
           <h2 className="conversion-title">Challenge friends or retake in 3 days.</h2>
           <p className="section-copy">
-            Full analysis unlocks after {REQUIRED_CHALLENGE_COMPLETIONS}
-            completions are recorded from your link.
+            Full analysis unlocks after you share and{" "}
+            {REQUIRED_CHALLENGE_COMPLETIONS} friends finish from your link.
           </p>
         </div>
 
         <div className="action-row">
-          <button onClick={handleShare} className="btn-primary" type="button">
-            Copy Challenge Link
+          <button
+            onClick={handleChallengeShare}
+            className="btn-primary"
+            type="button"
+          >
+            Challenge friends
           </button>
-          <Link href={sharePath} className="btn-secondary">
-            Preview Scorecard
-          </Link>
           <Link href="/arena" className="btn-secondary">
             Play Hot Takes Arena
           </Link>
@@ -275,26 +581,8 @@ export default function ResultsClient({ score }: { score: number }) {
       <PlaybookCard
         plan={analysis.improvementPlan}
         improvementLevel={analysis.improvementLevel}
+        name={profile?.name}
       />
-
-      <section className="report-card progress-card">
-        <div className="section-heading">
-          <span className="section-eyebrow">Progress framing</span>
-          <h2 className="conversion-title">
-            {band.name} band progress: {bandProgress}%
-          </h2>
-          <p className="section-copy">
-            Score range {band.min}-{band.max}. Retake in 3 days to lock in the
-            gains.
-          </p>
-        </div>
-        <div className="progress-meta">
-          <span className="progress-chip">
-            Score: {normalizedScore}/{MAX_SCORE}
-          </span>
-          <span className="progress-chip">Band range: {band.min}-{band.max}</span>
-        </div>
-      </section>
 
       <section className="report-card locked-card">
         <div className={`locked-content ${analysisUnlocked ? "unlocked" : ""}`}>
@@ -353,15 +641,16 @@ export default function ResultsClient({ score }: { score: number }) {
             <div className="locked-overlay-content">
               <div className="locked-badge">FULL ANALYSIS LOCKED</div>
               <p className="section-copy">
-                {completionCount}/{REQUIRED_CHALLENGE_COMPLETIONS} challenge
-                completions recorded. Unlocks at {REQUIRED_CHALLENGE_COMPLETIONS}.
+                {!bonusUnlocked
+                  ? "Share your scorecard to start tracking completions."
+                  : `${completionCount}/${REQUIRED_CHALLENGE_COMPLETIONS} challenge completions recorded. Unlocks at ${REQUIRED_CHALLENGE_COMPLETIONS}.`}
               </p>
               <button
                 className="btn-primary"
                 type="button"
                 onClick={handleChallengeShare}
               >
-                Copy Challenge Link
+                Share Challenge Link
               </button>
             </div>
           </div>
@@ -407,9 +696,24 @@ export default function ResultsClient({ score }: { score: number }) {
         </button>
       </div>
 
-      <div className={`share-toast ${showToast ? "visible" : ""}`}>
+      <div
+        className={`share-toast ${showToast ? "visible" : ""}`}
+        role="alert"
+        aria-live="assertive"
+      >
         {toastMessage}
       </div>
+
+      <ShareCard
+        cardRef={shareCardRef}
+        variant="quiz"
+        name={shareDisplayName ?? profile?.name}
+        score={normalizedScore}
+        bandName={band.name}
+        dimensions={analysis.dimensionScores}
+        streak={currentStreak}
+        tier={rankTier}
+      />
     </main>
   );
 }

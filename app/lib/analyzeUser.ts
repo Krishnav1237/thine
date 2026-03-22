@@ -117,14 +117,25 @@ export function getImprovementLevel(score: number): string {
   return "Reset";
 }
 
-export function calculateDimensionScores(answers: number[]): DimensionScore[] {
+export function calculateDimensionScores(
+  answers: number[],
+  questionOrder?: number[]
+): DimensionScore[] {
   const totals = new Map<DimensionKey, { score: number; max: number }>();
 
   dimensions.forEach((dimension) => {
     totals.set(dimension.key, { score: 0, max: 0 });
   });
 
-  questions.forEach((question, index) => {
+  const questionMap = new Map(questions.map((question) => [question.id, question]));
+  const resolvedQuestions =
+    questionOrder && questionOrder.length > 0
+      ? questionOrder
+          .map((id) => questionMap.get(id))
+          .filter((question): question is (typeof questions)[number] => Boolean(question))
+      : questions;
+
+  resolvedQuestions.forEach((question, index) => {
     const total = totals.get(question.dimension);
     if (!total) {
       return;
@@ -151,8 +162,12 @@ export function calculateDimensionScores(answers: number[]): DimensionScore[] {
   });
 }
 
-export function analyzeUser(answers: number[], score: number): UserAnalysis {
-  const dimensionScores = calculateDimensionScores(answers);
+export function analyzeUser(
+  answers: number[],
+  score: number,
+  questionOrder?: number[]
+): UserAnalysis {
+  const dimensionScores = calculateDimensionScores(answers, questionOrder);
   const sorted = [...dimensionScores].sort((a, b) => b.percent - a.percent);
   const strengths = sorted.slice(0, 2).map((item) => item.title);
   const weakest = sorted[sorted.length - 1] ?? dimensionScores[0];
