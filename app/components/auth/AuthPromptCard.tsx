@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { useAuth } from "../../hooks/useAuth";
 import AuthModal from "./AuthModal";
 import RankBadge from "../shared/RankBadge";
 import StreakCounter from "../shared/StreakCounter";
+import { capturePostHogEvent } from "../PostHogProvider";
 
 function dismissedKey(sourcePage: string) {
   return `thine-auth-prompt-dismissed:${sourcePage}`;
@@ -21,6 +22,7 @@ export default function AuthPromptCard({
   const { isLoggedIn, loading, profile } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [dismissedOverride, setDismissedOverride] = useState(false);
+  const hasTrackedPromptRef = useRef(false);
   const dismissed = useSyncExternalStore(
     () => () => undefined,
     () => {
@@ -35,6 +37,21 @@ export default function AuthPromptCard({
     },
     () => dismissedOverride
   );
+
+  useEffect(() => {
+    if (
+      loading ||
+      isLoggedIn ||
+      dismissed ||
+      hasTrackedPromptRef.current ||
+      (sourcePage !== "results" && sourcePage !== "arena")
+    ) {
+      return;
+    }
+
+    hasTrackedPromptRef.current = true;
+    capturePostHogEvent("authpromptshown", { location: sourcePage });
+  }, [dismissed, isLoggedIn, loading, sourcePage]);
 
   if (loading) {
     return null;
@@ -105,6 +122,7 @@ export default function AuthPromptCard({
       <AuthModal
         isOpen={isOpen}
         sourcePage={sourcePage}
+        trigger={sourcePage}
         onClose={() => setIsOpen(false)}
       />
     </>

@@ -2,17 +2,21 @@
 
 import { FormEvent, useCallback, useEffect, useId, useRef, useState } from "react";
 
+import { capturePostHogEvent } from "../PostHogProvider";
 import { useAuth } from "../../hooks/useAuth";
 import EmailCaptureModal from "./EmailCaptureModal";
 
 const EMAIL_CAPTURE_KEY = "thine-email-captured";
+const PENDING_AUTH_KEY = "thine-auth-complete-pending";
 
 function AuthModalPanel({
   sourcePage,
+  trigger,
   defaultTab,
   onClose,
 }: {
   sourcePage: string;
+  trigger: string;
   defaultTab: "signup" | "login";
   onClose: () => void;
 }): React.JSX.Element {
@@ -43,6 +47,10 @@ function AuthModalPanel({
   useEffect(() => {
     closeButtonRef.current?.focus();
   }, []);
+
+  useEffect(() => {
+    capturePostHogEvent("auth_prompted", { trigger });
+  }, [trigger]);
 
   useEffect(() => {
     const panel = panelRef.current;
@@ -95,6 +103,16 @@ function AuthModalPanel({
     setSubmitting(true);
     setMessage("");
 
+    if (password.length < 8) {
+      setMessage("Password must be at least 8 characters.");
+      setSubmitting(false);
+      return;
+    }
+
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(PENDING_AUTH_KEY);
+    }
+
     const action =
       tab === "signup"
         ? signUp({
@@ -116,6 +134,7 @@ function AuthModalPanel({
       return;
     }
 
+    capturePostHogEvent("auth_completed", { method: "email" });
     setMessage("Success. Your progress is now tied to your profile.");
     window.setTimeout(() => {
       onClose();
@@ -126,11 +145,24 @@ function AuthModalPanel({
     setSubmitting(true);
     setMessage("");
 
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(
+        PENDING_AUTH_KEY,
+        JSON.stringify({
+          method: "google",
+          createdAt: Date.now(),
+        })
+      );
+    }
+
     const action = tab === "signup" ? signUp : signIn;
     const result = await action({ provider: "google" });
     setSubmitting(false);
 
     if (result.error) {
+      if (typeof window !== "undefined") {
+        window.localStorage.removeItem(PENDING_AUTH_KEY);
+      }
       setMessage(result.error);
       return;
     }
@@ -221,9 +253,10 @@ function AuthModalPanel({
               className="auth-input"
               type="password"
               required
+              minLength={8}
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              placeholder="Password"
+              placeholder="Password (min 8 characters)"
             />
 
             <button className="btn-primary" type="submit" disabled={submitting}>
@@ -255,11 +288,13 @@ function AuthModalPanel({
 export default function AuthModal({
   isOpen,
   sourcePage,
+  trigger,
   defaultTab = "signup",
   onClose,
 }: {
   isOpen: boolean;
   sourcePage: string;
+  trigger: string;
   defaultTab?: "signup" | "login";
   onClose: () => void;
 }): React.JSX.Element | null {
@@ -269,8 +304,9 @@ export default function AuthModal({
 
   return (
     <AuthModalPanel
-      key={`${sourcePage}:${defaultTab}`}
+      key={`${sourcePage}:${trigger}:${defaultTab}`}
       sourcePage={sourcePage}
+      trigger={trigger}
       defaultTab={defaultTab}
       onClose={onClose}
     />

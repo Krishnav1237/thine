@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { Analytics } from "@vercel/analytics/next";
+import PostHogProvider from "./components/PostHogProvider";
 import { AuthProvider } from "./components/auth/AuthProvider";
 import "./globals.css";
 import { siteUrl } from "./lib/site";
@@ -38,11 +39,19 @@ export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
-}>) {
+}>): React.JSX.Element {
+  const posthogKey = process.env.NEXTPUBLICPOSTHOG_KEY ?? "";
+  const posthogHost =
+    process.env.NEXTPUBLICPOSTHOG_HOST ?? "https://us.i.posthog.com";
+
   return (
     <html lang="en">
       <body>
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <PostHogProvider apiKey={posthogKey} host={posthogHost}>
+            {children}
+          </PostHogProvider>
+        </AuthProvider>
         <Analytics />
       </body>
     </html>

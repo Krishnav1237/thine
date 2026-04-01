@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useId, useRef, useState } from "react";
 
 import { getSupabaseBrowserClient } from "../../lib/supabase/client";
+import { capturePostHogEvent } from "../PostHogProvider";
 
 const EMAIL_CAPTURE_KEY = "thine-email-captured";
 
@@ -73,6 +74,12 @@ function EmailCapturePanel({
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailPattern.test(email.trim())) {
+      setMessage("Please enter a valid email address.");
+      return;
+    }
+
     try {
       const supabase = getSupabaseBrowserClient();
 
@@ -84,10 +91,12 @@ function EmailCapturePanel({
       }
 
       window.localStorage.setItem(EMAIL_CAPTURE_KEY, "true");
+      capturePostHogEvent("email_captured");
       setMessage("You're on the list!");
       window.setTimeout(onClose, 900);
     } catch {
       window.localStorage.setItem(EMAIL_CAPTURE_KEY, "true");
+      capturePostHogEvent("email_captured");
       setMessage("You're on the list!");
       window.setTimeout(onClose, 900);
     }

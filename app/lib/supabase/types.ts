@@ -162,9 +162,112 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["shared_results"]["Insert"]>;
         Relationships: [];
       };
+      challenge_completions: {
+        Row: {
+          id: string;
+          ref: string;
+          completer_score: number;
+          completer_name: string | null;
+          completed_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          ref: string;
+          completer_score: number;
+          completer_name?: string | null;
+          completed_at?: string | null;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["challenge_completions"]["Insert"]
+        >;
+        Relationships: [];
+      };
+      arena_responses: {
+        Row: {
+          id: string;
+          take_id: string;
+          stance: "agree" | "depends" | "disagree";
+          session_id: string;
+          responded_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          take_id: string;
+          stance: "agree" | "depends" | "disagree";
+          session_id: string;
+          responded_at?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["arena_responses"]["Insert"]>;
+        Relationships: [];
+      };
+      arena_sessions: {
+        Row: {
+          id: string;
+          session_id: string;
+          user_id: string | null;
+          display_name: string | null;
+          mode: "daily" | "avid";
+          dominant_stance: string | null;
+          thinking_profile: string | null;
+          agree_count: number;
+          depends_count: number;
+          disagree_count: number;
+          completed_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          session_id: string;
+          user_id?: string | null;
+          display_name?: string | null;
+          mode: "daily" | "avid";
+          dominant_stance?: string | null;
+          thinking_profile?: string | null;
+          agree_count?: number;
+          depends_count?: number;
+          disagree_count?: number;
+          completed_at?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["arena_sessions"]["Insert"]>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      countchallengecompletions: {
+        Args: {
+          ref_code: string;
+        };
+        Returns: number;
+      };
+      getarenacrowdstats: {
+        Args: {
+          takeids: string[];
+        };
+        Returns: {
+          take_id: string;
+          agree_pct: number;
+          depends_pct: number;
+          disagree_pct: number;
+          total_responses: number;
+        }[];
+      };
+      findarenamatch: {
+        Args: {
+          exclude_session: string;
+          match_mode: string;
+          match_stance: string;
+        };
+        Returns: {
+          display_name: string | null;
+          dominant_stance: string | null;
+          thinking_profile: string | null;
+          agree_count: number;
+          depends_count: number;
+          disagree_count: number;
+          completed_at: string | null;
+        }[];
+      };
+    };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
   };
@@ -179,3 +282,9 @@ export type SharedResultRow =
   Database["public"]["Tables"]["shared_results"]["Row"];
 export type SharedResultInsert =
   Database["public"]["Tables"]["shared_results"]["Insert"];
+export type ChallengeCompletionInsert =
+  Database["public"]["Tables"]["challenge_completions"]["Insert"];
+export type ArenaResponseInsert =
+  Database["public"]["Tables"]["arena_responses"]["Insert"];
+export type ArenaSessionInsert =
+  Database["public"]["Tables"]["arena_sessions"]["Insert"];

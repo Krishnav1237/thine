@@ -29,7 +29,13 @@ async function loadSharedResult(resultId: string) {
     .select("*")
     .eq("id", resultId)
     .maybeSingle();
-  const shared = (data ?? null) as SharedResultRow | null;
+  return (data ?? null) as SharedResultRow | null;
+}
+
+async function loadSharedResultWithViewIncrement(
+  resultId: string
+): Promise<SharedResultRow | null> {
+  const shared = await loadSharedResult(resultId);
 
   const admin = getSupabaseAdminClient();
   if (shared && admin) {
@@ -149,7 +155,7 @@ export default async function ShareResultPage({
     redirect(`/share?score=${score}`);
   }
 
-  const shared = await loadSharedResult(resolvedParams.score);
+  const shared = await loadSharedResultWithViewIncrement(resolvedParams.score);
 
   if (!shared) {
     notFound();

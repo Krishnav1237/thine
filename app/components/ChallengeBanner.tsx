@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { readChallenge, storeChallenge, type ChallengeData } from "../lib/challenge";
 
@@ -33,7 +33,13 @@ export default function ChallengeBanner(): React.JSX.Element | null {
     return null;
   }, [challengeFlag, scoreParam, nameParam, refParam]);
 
-  const storedChallenge = readChallenge();
+  const [storedChallenge] = useState<ChallengeData | null>(() => {
+    if (typeof window === "undefined") {
+      return null;
+    }
+    return readChallenge();
+  });
+
   const challenge = challengeFromQuery ?? storedChallenge;
 
   useEffect(() => {

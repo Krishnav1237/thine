@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 
+import { capturePostHogEvent } from "../../lib/posthog";
 import { migrateLocalDataToSupabase } from "../../lib/supabase/migrate";
 import {
   ensureProfileRow,
@@ -16,6 +17,9 @@ import {
 } from "../../lib/supabase/sync";
 import { getSupabaseBrowserClient } from "../../lib/supabase/client";
 import type { ProfileRow } from "../../lib/supabase/types";
+
+const PENDING_AUTH_KEY = "thine-auth-complete-pending";
+const PENDING_AUTH_TTL_MS = 15 * 60 * 1000;
 
 interface AuthCredentials {
   email?: string;
@@ -71,6 +75,31 @@ async function hydrateUserState({
   } catch {
     setProfile(await fetchProfile(nextSession.user.id));
   } finally {
+    if (typeof window !== "undefined") {
+      const pendingRaw = window.localStorage.getItem(PENDING_AUTH_KEY);
+
+      if (pendingRaw) {
+        try {
+          const pending = JSON.parse(pendingRaw) as {
+            method?: "google";
+            createdAt?: number;
+          };
+          const isFresh =
+            pending.method === "google" &&
+            typeof pending.createdAt === "number" &&
+            Date.now() - pending.createdAt < PENDING_AUTH_TTL_MS;
+
+          if (isFresh) {
+            capturePostHogEvent("auth_completed", { method: "google" });
+          }
+        } catch {
+          // Ignore malformed analytics state and continue.
+        } finally {
+          window.localStorage.removeItem(PENDING_AUTH_KEY);
+        }
+      }
+    }
+
     setLoading(false);
   }
 }
@@ -142,10 +171,11 @@ export function AuthProvider({
 
     try {
       if (provider === "google") {
+        const safeRedirect = window.location.origin + window.location.pathname;
         const { error } = await supabase.auth.signInWithOAuth({
           provider: "google",
           options: {
-            redirectTo: window.location.href,
+            redirectTo: safeRedirect,
           },
         });
 

@@ -243,6 +243,7 @@ export default function BrandHeader(): React.JSX.Element {
       <AuthModal
         isOpen={isAuthOpen}
         sourcePage={`nav:${pathname}`}
+        trigger="header"
         defaultTab={authTab}
         onClose={() => setIsAuthOpen(false)}
       />

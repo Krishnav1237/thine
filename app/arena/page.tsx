@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 
+import { capturePostHogEvent } from "../components/PostHogProvider";
 import AuthPromptCard from "../components/auth/AuthPromptCard";
 import BrandHeader from "../components/BrandHeader";
 import DailyPackBadge from "../components/DailyPackBadge";
+import MatchCard from "../components/MatchCard";
 import RankBadge from "../components/shared/RankBadge";
 import ShareCard from "../components/shared/ShareCard";
 import StreakCounter from "../components/shared/StreakCounter";
@@ -21,6 +23,7 @@ import { getDailySeed, seededShuffle } from "../lib/daily-pack";
 import { readQuizSession } from "../lib/quiz-session";
 import { recordDailyActivity } from "../lib/retention";
 import { shareResult } from "../lib/share-card";
+import { getSupabaseBrowserClient } from "../lib/supabase/client";
 import {
   readLocalPlayerStats,
   saveArenaAttempt,
@@ -46,6 +49,24 @@ interface ArenaSyncState {
   longestStreak: number;
   rankTier: RankTier;
   totalXP: number;
+}
+
+interface ArenaCrowdStat {
+  takeId: string;
+  agreePct: number;
+  dependsPct: number;
+  disagreePct: number;
+  totalResponses: number;
+}
+
+interface ArenaMatchState {
+  displayName: string | null;
+  dominantStance: string | null;
+  thinkingProfile: string | null;
+  agreeCount: number;
+  dependsCount: number;
+  disagreeCount: number;
+  completedAt: string | null;
 }
 
 const STORAGE_KEY = "arenaResponses";
@@ -88,25 +109,6 @@ const storeMode = (mode: SessionMode) => {
   window.localStorage.setItem(MODE_KEY, mode);
 };
 
-const readStoredResponses = (): ArenaResponse[] => {
-  if (typeof window === "undefined") {
-    return [];
-  }
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      return [];
-    }
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) {
-      return [];
-    }
-    return parsed as ArenaResponse[];
-  } catch {
-    return [];
-  }
-};
-
 const readStoredProfile = () => {
   if (typeof window === "undefined") {
     return null;
@@ -143,19 +145,241 @@ const storeProfile = (name: string, role: string) => {
   );
 };
 
-const persistResponse = (response: ArenaResponse) => {
+const persistResponses = (responses: ArenaResponse[]) => {
   if (typeof window === "undefined") {
     return;
   }
-  const existing = readStoredResponses();
-  window.localStorage.setItem(
-    STORAGE_KEY,
-    JSON.stringify([...existing, response])
-  );
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(responses));
+};
+
+const clearStoredResponses = () => {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify([]));
 };
 
 const buildDeck = (count: number, seed: number) =>
   seededShuffle(HOT_TAKES, seed).slice(0, count);
+
+const createArenaSessionId = (): string => {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+
+  return `arena-${Math.random().toString(36).slice(2, 10)}-${Date.now()}`;
+};
+
+const buildArenaCounts = (
+  responses: ArenaResponse[]
+): Record<ArenaAnswer, number> =>
+  responses.reduce(
+    (acc, response) => {
+      acc[response.answer] += 1;
+      return acc;
+    },
+    { agree: 0, disagree: 0, depends: 0 }
+  );
+
+const buildArenaMix = (responses: ArenaResponse[]) => {
+  if (responses.length === 0) {
+    return {
+      total: 0,
+      counts: { agree: 0, disagree: 0, depends: 0 },
+      agreePct: 0,
+      disagreePct: 0,
+      dependsPct: 0,
+      dominantKey: null as ArenaAnswer | null,
+    };
+  }
+
+  const counts = buildArenaCounts(responses);
+  const total = responses.length;
+  const percents = normalizeArenaPercents({
+    agree: (counts.agree / total) * 100,
+    disagree: (counts.disagree / total) * 100,
+    depends: (counts.depends / total) * 100,
+  });
+
+  return {
+    total,
+    counts,
+    ...percents,
+    dominantKey: resolveDominantFromCounts(counts),
+  };
+};
+
+const buildArenaSummary = (mix: ReturnType<typeof buildArenaMix>) => {
+  if (mix.total === 0) {
+    return null;
+  }
+
+  let profile = "Balanced Thinker";
+  let profileNote =
+    "You land in the middle: strong opinions, but you know when nuance matters.";
+
+  if (mix.disagreePct >= 50) {
+    profile = "Contrarian Thinker";
+    profileNote =
+      "You default to disagreement and trust your own signal more than the default.";
+  } else if (mix.agreePct >= 50) {
+    profile = "Conformist Thinker";
+    profileNote =
+      "You choose agree more often than not, which keeps your responses consistent.";
+  } else if (mix.dependsPct >= 45) {
+    profile = "Nuanced Thinker";
+    profileNote =
+      "You see tradeoffs quickly and avoid binary choices when the truth is mixed.";
+  }
+
+  return {
+    agreePct: mix.agreePct,
+    disagreePct: mix.disagreePct,
+    dependsPct: mix.dependsPct,
+    profile,
+    profileNote,
+  };
+};
+
+const recordArenaResponseRemote = async (
+  takeId: string,
+  stance: ArenaAnswer,
+  sessionId: string
+): Promise<void> => {
+  const supabase = getSupabaseBrowserClient();
+
+  if (!supabase) {
+    return;
+  }
+
+  try {
+    await supabase.from("arena_responses").insert({
+      take_id: takeId,
+      stance,
+      session_id: sessionId,
+    });
+  } catch {
+    // Fall back silently to local-only arena state.
+  }
+};
+
+const getArenaCrowdStats = async (
+  takeIds: string[]
+): Promise<Record<string, ArenaCrowdStat>> => {
+  const supabase = getSupabaseBrowserClient();
+
+  if (!supabase || takeIds.length === 0) {
+    return {};
+  }
+
+  try {
+    const { data, error } = await supabase.rpc("getarenacrowdstats", {
+      takeids: takeIds,
+    });
+
+    if (error || !Array.isArray(data)) {
+      return {};
+    }
+
+    return data.reduce<Record<string, ArenaCrowdStat>>((acc, row) => {
+      acc[row.take_id] = {
+        takeId: row.take_id,
+        agreePct: Number(row.agree_pct ?? 0),
+        dependsPct: Number(row.depends_pct ?? 0),
+        disagreePct: Number(row.disagree_pct ?? 0),
+        totalResponses: Number(row.total_responses ?? 0),
+      };
+      return acc;
+    }, {});
+  } catch {
+    return {};
+  }
+};
+
+const saveArenaSessionRemote = async ({
+  sessionId,
+  userId,
+  displayName,
+  mode,
+  dominantStance,
+  thinkingProfile,
+  agreeCount,
+  dependsCount,
+  disagreeCount,
+}: {
+  sessionId: string;
+  userId?: string | null;
+  displayName: string;
+  mode: SessionMode;
+  dominantStance: string | null;
+  thinkingProfile: string;
+  agreeCount: number;
+  dependsCount: number;
+  disagreeCount: number;
+}): Promise<void> => {
+  const supabase = getSupabaseBrowserClient();
+
+  if (!supabase) {
+    return;
+  }
+
+  try {
+    await supabase.from("arena_sessions").insert({
+      session_id: sessionId,
+      user_id: userId ?? null,
+      display_name: displayName,
+      mode,
+      dominant_stance: dominantStance,
+      thinking_profile: thinkingProfile,
+      agree_count: agreeCount,
+      depends_count: dependsCount,
+      disagree_count: disagreeCount,
+    });
+  } catch {
+    // Matchmaking is optional.
+  }
+};
+
+const findArenaMatch = async ({
+  sessionId,
+  mode,
+  dominantStance,
+}: {
+  sessionId: string;
+  mode: SessionMode;
+  dominantStance: string;
+}): Promise<ArenaMatchState | null> => {
+  const supabase = getSupabaseBrowserClient();
+
+  if (!supabase) {
+    return null;
+  }
+
+  try {
+    const { data, error } = await supabase.rpc("findarenamatch", {
+      exclude_session: sessionId,
+      match_mode: mode,
+      match_stance: dominantStance,
+    });
+
+    if (error || !Array.isArray(data) || !data[0]) {
+      return null;
+    }
+
+    const match = data[0];
+    return {
+      displayName: match.display_name,
+      dominantStance: match.dominant_stance,
+      thinkingProfile: match.thinking_profile,
+      agreeCount: Number(match.agree_count ?? 0),
+      dependsCount: Number(match.depends_count ?? 0),
+      disagreeCount: Number(match.disagree_count ?? 0),
+      completedAt: match.completed_at,
+    };
+  } catch {
+    return null;
+  }
+};
 
 export default function ArenaPage() {
   const { user, profile, refreshProfile } = useAuth();
@@ -179,6 +403,14 @@ export default function ArenaPage() {
   const [playerStats, setPlayerStats] = useState(() => readLocalPlayerStats());
   const [arenaSync, setArenaSync] = useState<ArenaSyncState | null>(null);
   const [xpBurst, setXpBurst] = useState(0);
+  const [arenaSessionId, setArenaSessionId] = useState<string>(() =>
+    createArenaSessionId()
+  );
+  const [crowdStats, setCrowdStats] = useState<Record<string, ArenaCrowdStat>>(
+    {}
+  );
+  const [arenaMatch, setArenaMatch] = useState<ArenaMatchState | null>(null);
+  const [matchResolved, setMatchResolved] = useState(false);
   const [profileName, setProfileName] = useState<string | null>(() => {
     if (storedProfile?.name) {
       return storedProfile.name.trim() || null;
@@ -205,6 +437,8 @@ export default function ArenaPage() {
   const pointerCapturedRef = useRef(false);
   const recordedRef = useRef(false);
   const saveAttemptRef = useRef(false);
+  const saveMatchRef = useRef(false);
+  const arenaStartedRef = useRef(false);
   const shareCardRef = useRef<HTMLDivElement>(null);
   const savedShareUrlRef = useRef<string | null>(null);
   const pointerStartRef = useRef<{
@@ -221,41 +455,10 @@ export default function ArenaPage() {
 
   const answersLocked = selectedAnswer !== null || phase === "summary";
 
-  const sessionMix = useMemo(() => {
-    if (sessionResponses.length === 0) {
-      return {
-        total: 0,
-        counts: { agree: 0, disagree: 0, depends: 0 },
-        agreePct: 0,
-        disagreePct: 0,
-        dependsPct: 0,
-        dominantKey: null as ArenaAnswer | null,
-      };
-    }
-
-    const counts = sessionResponses.reduce(
-      (acc, response) => {
-        acc[response.answer] += 1;
-        return acc;
-      },
-      { agree: 0, disagree: 0, depends: 0 }
-    );
-
-    const total = sessionResponses.length;
-    const percents = normalizeArenaPercents({
-      agree: (counts.agree / total) * 100,
-      disagree: (counts.disagree / total) * 100,
-      depends: (counts.depends / total) * 100,
-    });
-    const dominantKey = resolveDominantFromCounts(counts);
-
-    return {
-      total,
-      counts,
-      ...percents,
-      dominantKey,
-    };
-  }, [sessionResponses]);
+  const sessionMix = useMemo(
+    () => buildArenaMix(sessionResponses),
+    [sessionResponses]
+  );
 
   const mixRows = useMemo(() => {
     const mixValues: Record<ArenaAnswer, number> = {
@@ -271,41 +474,8 @@ export default function ArenaPage() {
     }));
   }, [sessionMix.agreePct, sessionMix.dependsPct, sessionMix.disagreePct]);
 
-  const sessionSummary = useMemo(() => {
-    if (sessionMix.total === 0) {
-      return null;
-    }
-
-    const agreePct = sessionMix.agreePct;
-    const disagreePct = sessionMix.disagreePct;
-    const dependsPct = sessionMix.dependsPct;
-
-    let profile = "Balanced Thinker";
-    let profileNote =
-      "You land in the middle: strong opinions, but you know when nuance matters.";
-
-    if (disagreePct >= 50) {
-      profile = "Contrarian Thinker";
-      profileNote =
-        "You default to disagreement and trust your own signal more than the default.";
-    } else if (agreePct >= 50) {
-      profile = "Conformist Thinker";
-      profileNote =
-        "You choose agree more often than not, which keeps your responses consistent.";
-    } else if (dependsPct >= 45) {
-      profile = "Nuanced Thinker";
-      profileNote =
-        "You see tradeoffs quickly and avoid binary choices when the truth is mixed.";
-    }
-
-    return {
-      agreePct,
-      disagreePct,
-      dependsPct,
-      profile,
-      profileNote,
-    };
-  }, [sessionMix]);
+  const sessionSummary = useMemo(() => buildArenaSummary(sessionMix), [sessionMix]);
+  const matchDominantKey = sessionMix.dominantKey;
 
   const dominantStance = useMemo(() => {
     if (!sessionSummary || !sessionMix.dominantKey) {
@@ -324,6 +494,31 @@ export default function ArenaPage() {
       value,
     };
   }, [sessionMix, sessionSummary]);
+
+  const sessionTakeSummaries = useMemo(
+    () =>
+      sessionResponses.reduce<
+        Array<{
+          take: HotTake;
+          answer: ArenaAnswer;
+          crowd: ArenaCrowdStat | null;
+        }>
+      >((acc, response) => {
+          const take = deck.find((item) => item.id === response.takeId);
+
+          if (!take) {
+            return acc;
+          }
+
+          acc.push({
+            take,
+            answer: response.answer,
+            crowd: crowdStats[String(response.takeId)] ?? null,
+          });
+          return acc;
+        }, []),
+    [crowdStats, deck, sessionResponses]
+  );
 
   const shareText = useMemo(() => {
     if (!sessionSummary) {
@@ -353,6 +548,10 @@ export default function ArenaPage() {
       arenaSync?.rankTier ??
       playerStats.rankTier ??
       "bronze") as RankTier;
+
+  useEffect(() => {
+    savedShareUrlRef.current = null;
+  }, [profileName, profileRole]);
 
   useEffect(() => {
     if (!xpBurst) {
@@ -407,6 +606,90 @@ export default function ArenaPage() {
     sessionMix.counts.disagree,
     sessionMode,
     sessionResponses,
+    sessionSummary,
+    user?.id,
+  ]);
+
+  useEffect(() => {
+    if (phase !== "summary" || sessionResponses.length === 0) {
+      return;
+    }
+
+    let active = true;
+
+    void getArenaCrowdStats(sessionResponses.map((response) => String(response.takeId))).then(
+      (nextStats) => {
+        if (active) {
+          setCrowdStats(nextStats);
+        }
+      }
+    );
+
+    return () => {
+      active = false;
+    };
+  }, [phase, sessionResponses]);
+
+  useEffect(() => {
+    const dominantKey = matchDominantKey;
+
+    if (
+      phase !== "summary" ||
+      !sessionSummary ||
+      !dominantKey ||
+      saveMatchRef.current
+    ) {
+      return;
+    }
+
+    saveMatchRef.current = true;
+    let active = true;
+
+    const displayName =
+      profileName?.trim() ||
+      profile?.display_name?.trim() ||
+      sessionProfile?.name?.trim() ||
+      "Anonymous";
+
+    void (async () => {
+      await saveArenaSessionRemote({
+        sessionId: arenaSessionId,
+        userId: user?.id ?? null,
+        displayName,
+        mode: sessionMode,
+        dominantStance: dominantKey,
+        thinkingProfile: sessionSummary.profile,
+        agreeCount: sessionMix.counts.agree,
+        dependsCount: sessionMix.counts.depends,
+        disagreeCount: sessionMix.counts.disagree,
+      });
+
+      const nextMatch = await findArenaMatch({
+        sessionId: arenaSessionId,
+        mode: sessionMode,
+        dominantStance: dominantKey,
+      });
+
+      if (active) {
+        setArenaMatch(nextMatch);
+        setMatchResolved(true);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [
+    arenaSessionId,
+    phase,
+    profile?.display_name,
+    profileName,
+    sessionMix.counts.agree,
+    sessionMix.counts.depends,
+    sessionMix.counts.disagree,
+    matchDominantKey,
+    sessionMode,
+    sessionProfile?.name,
     sessionSummary,
     user?.id,
   ]);
@@ -470,6 +753,11 @@ export default function ArenaPage() {
       return;
     }
 
+    if (!arenaStartedRef.current) {
+      arenaStartedRef.current = true;
+      capturePostHogEvent("arena_started", { mode: sessionMode });
+    }
+
     if (revealTimerRef.current) {
       window.clearTimeout(revealTimerRef.current);
     }
@@ -485,14 +773,23 @@ export default function ArenaPage() {
     setDragDirection(null);
 
     const response = { takeId: currentTake.id, answer };
-    setSessionResponses((prev) => [...prev, response]);
-    persistResponse(response);
+    const nextResponses = [...sessionResponses, response];
+    const nextMix = buildArenaMix(nextResponses);
+    setSessionResponses(nextResponses);
+    persistResponses(nextResponses);
+    void recordArenaResponseRemote(String(currentTake.id), answer, arenaSessionId);
 
     revealTimerRef.current = window.setTimeout(() => {
       if (currentIndex >= totalTakes - 1) {
         if (!recordedRef.current) {
           recordDailyActivity("arena");
           recordedRef.current = true;
+        }
+        if (nextMix.dominantKey) {
+          capturePostHogEvent("arena_completed", {
+            mode: sessionMode,
+            dominant_stance: nextMix.dominantKey,
+          });
         }
         setPhase("summary");
         return;
@@ -696,6 +993,7 @@ export default function ArenaPage() {
     if (!shareText) {
       return;
     }
+    capturePostHogEvent("share_clicked", { type: "link" });
     try {
       const shareLink = await resolveShareUrl();
       const copied = await copyToClipboard(shareLink);
@@ -728,6 +1026,7 @@ export default function ArenaPage() {
       return;
     }
 
+    capturePostHogEvent("share_clicked", { type: "image" });
     try {
       const shareLink = await resolveShareUrl();
       const result = await shareResult({
@@ -763,9 +1062,16 @@ export default function ArenaPage() {
     setCurrentIndex(0);
     setSessionResponses([]);
     setPhase("arena");
+    setArenaSessionId(createArenaSessionId());
+    setCrowdStats({});
+    setArenaMatch(null);
+    setMatchResolved(false);
     recordedRef.current = false;
     saveAttemptRef.current = false;
+    saveMatchRef.current = false;
+    arenaStartedRef.current = false;
     savedShareUrlRef.current = null;
+    clearStoredResponses();
     resetTakeState();
   };
 
@@ -779,9 +1085,16 @@ export default function ArenaPage() {
     setCurrentIndex(0);
     setSessionResponses([]);
     setPhase("arena");
+    setArenaSessionId(createArenaSessionId());
+    setCrowdStats({});
+    setArenaMatch(null);
+    setMatchResolved(false);
     recordedRef.current = false;
     saveAttemptRef.current = false;
+    saveMatchRef.current = false;
+    arenaStartedRef.current = false;
     savedShareUrlRef.current = null;
+    clearStoredResponses();
     resetTakeState();
   };
 
@@ -923,6 +1236,67 @@ export default function ArenaPage() {
                   </div>
                 </div>
               </div>
+
+              {sessionTakeSummaries.some((entry) => entry.crowd) ? (
+                <section className="arena-crowd-card">
+                  <div className="section-heading">
+                    <span className="section-eyebrow">Crowd signal</span>
+                    <h2 className="conversion-title">How your takes compare.</h2>
+                    <p className="section-copy">
+                      Your stance stays primary. Crowd stats are layered in when
+                      enough people have answered the same take.
+                    </p>
+                  </div>
+
+                  <div className="arena-crowd-list">
+                    {sessionTakeSummaries.map((entry) => (
+                      <article key={entry.take.id} className="arena-crowd-row">
+                        <div className="arena-crowd-head">
+                          <h3>{entry.take.text}</h3>
+                          <span className="arena-crowd-answer">
+                            You chose {ARENA_STANCE_LABELS[entry.answer]}
+                          </span>
+                        </div>
+                        {entry.crowd ? (
+                          entry.crowd.totalResponses < 10 ? (
+                            <p className="arena-crowd-meta">
+                              Not enough data yet
+                            </p>
+                          ) : (
+                            <p className="arena-crowd-meta">
+                              🌍 {entry.crowd.agreePct}% agree ·{" "}
+                              {entry.crowd.dependsPct}% depends ·{" "}
+                              {entry.crowd.disagreePct}% disagree (
+                              {entry.crowd.totalResponses} responses)
+                            </p>
+                          )
+                        ) : null}
+                      </article>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
+
+              {arenaMatch ? (
+                <MatchCard
+                  userName={profileName ?? undefined}
+                  userProfile={sessionSummary.profile}
+                  userCounts={sessionMix.counts}
+                  match={arenaMatch}
+                />
+              ) : matchResolved ? (
+                <section className="match-card match-card--empty">
+                  <div className="section-heading">
+                    <span className="section-eyebrow">Your match</span>
+                    <h2 className="conversion-title">Be the first to set the bar.</h2>
+                    <p className="section-copy">
+                      We&apos;ll compare your arena run against the next similar
+                      player as more sessions land.
+                    </p>
+                  </div>
+                </section>
+              ) : null}
+
               <AuthPromptCard
                 sourcePage="arena"
                 xpEarned={arenaSync?.xpEarned ?? 0}

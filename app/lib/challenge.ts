@@ -1,4 +1,5 @@
 import { normalizeScore } from "../data/questions";
+import { getSupabaseBrowserClient } from "./supabase/client";
 
 export const CHALLENGE_STORAGE_KEY = "thine-challenge";
 export const CHALLENGE_REF_KEY = "thine-challenge-ref";
@@ -78,12 +79,27 @@ export function readChallenge(): ChallengeData | null {
   }
 }
 
+function sanitizeRef(ref?: string): string | undefined {
+  if (!ref || typeof ref !== "string") {
+    return undefined;
+  }
+
+  const cleaned = ref.trim().slice(0, 128).replace(/[^a-zA-Z0-9\-_]/g, "");
+  return cleaned.length > 0 ? cleaned : undefined;
+}
+
 export function storeChallenge(data: ChallengeData): void {
   if (typeof window === "undefined") {
     return;
   }
 
-  window.localStorage.setItem(CHALLENGE_STORAGE_KEY, JSON.stringify(data));
+  const sanitized: ChallengeData = {
+    ...data,
+    challengerName: data.challengerName?.trim().slice(0, 32),
+    ref: sanitizeRef(data.ref),
+  };
+
+  window.localStorage.setItem(CHALLENGE_STORAGE_KEY, JSON.stringify(sanitized));
 }
 
 function readCompletionMap(): Record<string, number> {
@@ -128,6 +144,14 @@ function readCompletedRefs(): Set<string> {
   } catch {
     return new Set();
   }
+}
+
+export function hasCompletedChallengeRef(refId?: string | null): boolean {
+  if (!refId) {
+    return false;
+  }
+
+  return readCompletedRefs().has(refId);
 }
 
 function writeCompletedRefs(refs: Set<string>): void {
@@ -179,4 +203,58 @@ export function readChallengeCompletionCount(refId?: string | null): number {
 
   const completionMap = readCompletionMap();
   return completionMap[refId] ?? 0;
+}
+
+export async function registerChallengeCompletionRemote(
+  ref: string,
+  score: number,
+  name?: string
+): Promise<void> {
+  if (!ref) {
+    return;
+  }
+
+  const supabase = getSupabaseBrowserClient();
+
+  if (!supabase) {
+    return;
+  }
+
+  try {
+    await supabase.from("challenge_completions").insert({
+      ref,
+      completer_score: normalizeScore(score),
+      completer_name: name?.trim().slice(0, 32) || null,
+    });
+  } catch {
+    // Fall back silently to local-only tracking.
+  }
+}
+
+export async function getChallengeCompletionCount(
+  refId?: string | null
+): Promise<number> {
+  if (!refId) {
+    return 0;
+  }
+
+  const supabase = getSupabaseBrowserClient();
+
+  if (!supabase) {
+    return readChallengeCompletionCount(refId);
+  }
+
+  try {
+    const { data, error } = await supabase.rpc("countchallengecompletions", {
+      ref_code: refId,
+    });
+
+    if (error || typeof data !== "number") {
+      return readChallengeCompletionCount(refId);
+    }
+
+    return Math.max(readChallengeCompletionCount(refId), data);
+  } catch {
+    return readChallengeCompletionCount(refId);
+  }
 }

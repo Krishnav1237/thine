@@ -49,7 +49,10 @@ async function loadAllProfiles() {
   const supabase = await getSupabaseServerClient();
 
   if (!supabase) {
-    return [] as ProfileRow[];
+    return {
+      profiles: [] as ProfileRow[],
+      hasSupabase: false,
+    };
   }
 
   const { data } = await supabase
@@ -58,7 +61,10 @@ async function loadAllProfiles() {
     .order("pi_score", { ascending: false })
     .limit(300);
 
-  return (data ?? []) as ProfileRow[];
+  return {
+    profiles: (data ?? []) as ProfileRow[],
+    hasSupabase: true,
+  };
 }
 
 async function loadCurrentUserId() {
@@ -162,7 +168,7 @@ async function loadTimeboxedEntries(
 }
 
 async function loadLeaderboardEntries(tab: TabKey) {
-  const profiles = await loadAllProfiles();
+  const { profiles, hasSupabase } = await loadAllProfiles();
   const currentUserId = await loadCurrentUserId();
 
   const baseEntries: LeaderboardRow[] = profiles.map((profile, index) => ({
@@ -189,7 +195,7 @@ async function loadLeaderboardEntries(tab: TabKey) {
     entries: topEntries,
     currentUserEntry,
     currentUserId,
-    hasSupabase: profiles.length > 0,
+    hasSupabase,
     usedFallback: tab !== "all" && rankedEntries === baseEntries,
   };
 }

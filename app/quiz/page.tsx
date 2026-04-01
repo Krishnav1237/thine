@@ -4,6 +4,7 @@ import { startTransition, useCallback, useEffect, useRef, useState } from "react
 import { useRouter } from "next/navigation";
 
 import BrandHeader from "../components/BrandHeader";
+import { capturePostHogEvent } from "../components/PostHogProvider";
 import DailyPackBadge from "../components/DailyPackBadge";
 import {
   DEFAULT_QUIZ_MODE,
@@ -26,7 +27,12 @@ import {
   type QuizProfile,
   writeQuizSession,
 } from "../lib/quiz-session";
-import { registerChallengeCompletion } from "../lib/challenge";
+import {
+  hasCompletedChallengeRef,
+  readChallenge,
+  registerChallengeCompletion,
+  registerChallengeCompletionRemote,
+} from "../lib/challenge";
 import { recordDailyActivity } from "../lib/retention";
 
 export default function QuizPage() {
@@ -202,7 +208,23 @@ export default function QuizPage() {
         });
 
         recordDailyActivity("quiz");
+        const challenge = readChallenge();
+        const challengeRef = challenge?.ref;
+        const alreadyCompletedChallenge = hasCompletedChallengeRef(challengeRef);
+
         registerChallengeCompletion();
+        if (challengeRef && !alreadyCompletedChallenge) {
+          void registerChallengeCompletionRemote(
+            challengeRef,
+            totalScore,
+            profile?.name
+          );
+        }
+        capturePostHogEvent("quiz_completed", {
+          mode: sessionMode,
+          score: totalScore,
+          focus: profile?.focus ?? null,
+        });
 
         startTransition(() => {
           router.push(`/results?score=${totalScore}`);
@@ -281,6 +303,10 @@ export default function QuizPage() {
       focus: draftFocus,
     };
 
+    capturePostHogEvent("quiz_started", {
+      mode: sessionMode,
+      focus: draftFocus,
+    });
     setProfile(nextProfile);
     setIntroCompleted(true);
     setQuestionOrder(
@@ -297,6 +323,7 @@ export default function QuizPage() {
     draftRole,
     isReady,
     isTransitioning,
+    sessionMode,
     sessionPreset.count,
   ]);
 
@@ -305,11 +332,15 @@ export default function QuizPage() {
       return;
     }
 
+    capturePostHogEvent("quiz_started", {
+      mode: sessionMode,
+      focus: null,
+    });
     setIntroCompleted(true);
     setQuestionOrder(
       getDailyQuestionOrder({ count: sessionPreset.count, seed: dailySeed })
     );
-  }, [dailySeed, isReady, isTransitioning, sessionPreset.count]);
+  }, [dailySeed, isReady, isTransitioning, sessionMode, sessionPreset.count]);
 
   const orderedQuestions = getQuestionsByOrder(questionOrder ?? undefined);
   const question = orderedQuestions[currentIndex];

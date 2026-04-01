@@ -5,6 +5,7 @@ import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import AuthPromptCard from "../components/auth/AuthPromptCard";
+import { capturePostHogEvent } from "../components/PostHogProvider";
 import DailyCheckInCard from "../components/DailyCheckInCard";
 import PlaybookCard from "../components/PlaybookCard";
 import RankBadge from "../components/shared/RankBadge";
@@ -28,6 +29,7 @@ import {
 } from "../lib/quiz-session";
 import {
   buildChallengePath,
+  getChallengeCompletionCount,
   getOrCreateRefId,
   readChallenge,
   readChallengeCompletionCount,
@@ -62,7 +64,7 @@ export default function ResultsClient({ score }: { score: number }) {
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const shareCardRef = useRef<HTMLDivElement>(null);
   const saveAttemptRef = useRef(false);
-  const savedShareUrlRef = useRef<string | null>(null);
+  const savedShareUrlRef = useRef<{ key: string; url: string } | null>(null);
   const {
     user,
     profile: authProfile,
@@ -74,13 +76,16 @@ export default function ResultsClient({ score }: { score: number }) {
   const [playerStats, setPlayerStats] = useState(() => readLocalPlayerStats());
   const [quizSync, setQuizSync] = useState<QuizSyncState | null>(null);
   const [xpBurst, setXpBurst] = useState(0);
-  const [savedShareUrl, setSavedShareUrl] = useState<string | null>(null);
+  const [savedShareUrl, setSavedShareUrl] = useState<{
+    key: string;
+    url: string;
+  } | null>(null);
   const [includeNameInShare, setIncludeNameInShare] = useState(() =>
     Boolean(readQuizSession()?.profile?.name)
   );
   const [challenge] = useState<ChallengeData | null>(() => readChallenge());
   const [refId] = useState<string | null>(() => getOrCreateRefId());
-  const [completionCount] = useState(() =>
+  const [completionCount, setCompletionCount] = useState(() =>
     readChallengeCompletionCount(getOrCreateRefId())
   );
   const [bonusUnlocked, setBonusUnlocked] = useState(() => {
@@ -127,6 +132,40 @@ export default function ResultsClient({ score }: { score: number }) {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!refId) {
+      return;
+    }
+
+    let active = true;
+
+    const refreshCompletionCount = async () => {
+      const count = await getChallengeCompletionCount(refId);
+
+      if (active) {
+        setCompletionCount(count);
+      }
+    };
+
+    void refreshCompletionCount();
+
+    const intervalId = window.setInterval(() => {
+      void refreshCompletionCount();
+    }, 15000);
+
+    const handleFocus = () => {
+      void refreshCompletionCount();
+    };
+
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      active = false;
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [refId]);
 
   const answers = useMemo(
     () => session?.answers ?? EMPTY_ANSWERS,
@@ -263,6 +302,7 @@ export default function ResultsClient({ score }: { score: number }) {
 
   const shareName = includeNameInShare ? session?.profile?.name : undefined;
   const shareDisplayName = shareName?.trim();
+  const shareCacheKey = shareDisplayName ?? "__anonymous__";
   const sharePath = getSharePath(normalizedScore, shareName);
   const shareToggleDisabled = !session?.profile?.name;
   const challengePath = buildChallengePath(normalizedScore, shareName, refId);
@@ -283,13 +323,14 @@ export default function ResultsClient({ score }: { score: number }) {
       quizSync?.rankTier ??
       playerStats.rankTier ??
       "bronze") as RankTier;
-  const sharePreviewHref = savedShareUrl ?? sharePath;
+  const sharePreviewHref =
+    savedShareUrl?.key === shareCacheKey ? savedShareUrl.url : sharePath;
 
   const resolveShareUrl = async () => {
     const fallbackUrl = new URL(sharePath, window.location.origin).toString();
 
-    if (savedShareUrlRef.current) {
-      return savedShareUrlRef.current;
+    if (savedShareUrlRef.current?.key === shareCacheKey) {
+      return savedShareUrlRef.current.url;
     }
 
     if (!user?.id) {
@@ -301,7 +342,7 @@ export default function ResultsClient({ score }: { score: number }) {
       resulttype: "quiz",
       score: normalizedScore,
       score_band: band.name,
-      display_name: shareDisplayName ?? profile?.name ?? null,
+      display_name: shareDisplayName ?? quizProfile?.name ?? null,
       dimension_scores: analysis.dimensionScores as unknown as Json,
       thinking_profile: null,
       stance_data: null,
@@ -311,8 +352,12 @@ export default function ResultsClient({ score }: { score: number }) {
     const nextUrl = sharedResultId
       ? new URL(`/share/${sharedResultId}`, window.location.origin).toString()
       : fallbackUrl;
-    savedShareUrlRef.current = nextUrl;
-    setSavedShareUrl(nextUrl);
+    const nextShare = {
+      key: shareCacheKey,
+      url: nextUrl,
+    };
+    savedShareUrlRef.current = nextShare;
+    setSavedShareUrl(nextShare);
     return nextUrl;
   };
 
@@ -345,12 +390,14 @@ export default function ResultsClient({ score }: { score: number }) {
   };
 
   const handleShare = async () => {
+    capturePostHogEvent("share_clicked", { type: "link" });
     const shareUrl = await resolveShareUrl();
     await copyShareLink(shareUrl, "Link copied.");
     unlockBonus();
   };
 
   const handleImageShare = async () => {
+    capturePostHogEvent("share_clicked", { type: "image" });
     try {
       const shareUrl = await resolveShareUrl();
       const result = await shareResult({
@@ -375,6 +422,7 @@ export default function ResultsClient({ score }: { score: number }) {
   };
 
   const handleChallengeShare = async () => {
+    capturePostHogEvent("share_clicked", { type: "link" });
     await copyShareLink(challengePath, "Link copied.");
     unlockBonus();
   };
@@ -387,14 +435,14 @@ export default function ResultsClient({ score }: { score: number }) {
     });
   };
 
-  const profile = session?.profile;
-  const focusDimension = profile?.focus ? getDimension(profile.focus) : null;
+  const quizProfile = session?.profile;
+  const focusDimension = quizProfile?.focus ? getDimension(quizProfile.focus) : null;
   const focusCopy = focusDimension
     ? `Urgent focus: ${focusDimension.title}`
     : "No focus selected";
   const profileChips = [
-    profile?.name ? `Profile: ${profile.name}` : null,
-    profile?.role ?? null,
+    quizProfile?.name ? `Profile: ${quizProfile.name}` : null,
+    quizProfile?.role ?? null,
     focusDimension ? focusCopy : null,
     bonusUnlocked ? "Shared ✓" : null,
   ].filter((item): item is string => Boolean(item));
@@ -404,11 +452,11 @@ export default function ResultsClient({ score }: { score: number }) {
       : `Your lowest signal right now is ${weakestDimension.title}.`;
 
 
-  const title = profile?.name
-    ? `${profile.name}'s Intelligence Report`
+  const title = quizProfile?.name
+    ? `${quizProfile.name}'s Intelligence Report`
     : "Your Intelligence Report";
-  const eyebrow = profile?.name
-    ? `Personalized for ${profile.name}`
+  const eyebrow = quizProfile?.name
+    ? `Personalized for ${quizProfile.name}`
     : "Your Intelligence Report";
 
   return (
@@ -513,7 +561,11 @@ export default function ResultsClient({ score }: { score: number }) {
             >
               Share as image
             </button>
-            <a href={sharePreviewHref} className="btn-secondary">
+            <a
+              href={sharePreviewHref}
+              className="btn-secondary"
+              onClick={() => capturePostHogEvent("share_clicked", { type: "preview" })}
+            >
               Preview
             </a>
           </div>
@@ -522,7 +574,7 @@ export default function ResultsClient({ score }: { score: number }) {
 
       <AuthPromptCard sourcePage="results" xpEarned={quizSync?.xpEarned ?? 0} />
 
-      <DailyCheckInCard name={profile?.name} context="results" />
+      <DailyCheckInCard name={quizProfile?.name} context="results" />
 
       <section className="report-card action-card">
         <div className="section-heading">
@@ -581,7 +633,7 @@ export default function ResultsClient({ score }: { score: number }) {
       <PlaybookCard
         plan={analysis.improvementPlan}
         improvementLevel={analysis.improvementLevel}
-        name={profile?.name}
+        name={quizProfile?.name}
       />
 
       <section className="report-card locked-card">
@@ -707,7 +759,7 @@ export default function ResultsClient({ score }: { score: number }) {
       <ShareCard
         cardRef={shareCardRef}
         variant="quiz"
-        name={shareDisplayName ?? profile?.name}
+        name={shareDisplayName ?? quizProfile?.name}
         score={normalizedScore}
         bandName={band.name}
         dimensions={analysis.dimensionScores}
