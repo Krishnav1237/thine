@@ -5,13 +5,12 @@ import { useEffect, useState } from "react";
 import { getNextPackCountdown } from "../lib/daily-pack";
 
 export default function DailyPackBadge(): React.JSX.Element {
-  const [countdown, setCountdown] = useState(() => getNextPackCountdown());
+  const [countdown, setCountdown] = useState("--h --m");
 
   useEffect(() => {
     const tick = () => setCountdown(getNextPackCountdown());
-    const interval = window.setInterval(tick, 60000);
     tick();
-
+    const interval = window.setInterval(tick, 60000);
     return () => window.clearInterval(interval);
   }, []);
 

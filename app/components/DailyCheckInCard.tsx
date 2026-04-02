@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useSyncExternalStore, useState } from "react";
 
 import { getNextPackCountdown } from "../lib/daily-pack";
 import { readRetention } from "../lib/retention";
@@ -10,19 +10,35 @@ interface DailyCheckInCardProps {
   context?: "landing" | "results";
 }
 
+function subscribeNoop() {
+  // No external store to subscribe to — retention is read once on mount.
+  return () => {};
+}
+
+function getStreakSnapshot(): number {
+  return readRetention().currentStreak ?? 0;
+}
+
+function getBestStreakSnapshot(): number {
+  return readRetention().bestStreak ?? 0;
+}
+
+function getServerSnapshot(): number {
+  return 0;
+}
+
 export default function DailyCheckInCard({
   name,
   context = "landing",
 }: DailyCheckInCardProps): React.JSX.Element {
-  const [streak] = useState(() => readRetention().currentStreak ?? 0);
-  const [bestStreak] = useState(() => readRetention().bestStreak ?? 0);
-  const [nextPack, setNextPack] = useState(() => getNextPackCountdown());
+  const streak = useSyncExternalStore(subscribeNoop, getStreakSnapshot, getServerSnapshot);
+  const bestStreak = useSyncExternalStore(subscribeNoop, getBestStreakSnapshot, getServerSnapshot);
+  const [nextPack, setNextPack] = useState("--h --m");
 
   useEffect(() => {
-    const interval = window.setInterval(
-      () => setNextPack(getNextPackCountdown()),
-      60000
-    );
+    const tick = () => setNextPack(getNextPackCountdown());
+    tick();
+    const interval = window.setInterval(tick, 60000);
     return () => window.clearInterval(interval);
   }, []);
 
