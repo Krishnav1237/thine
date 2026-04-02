@@ -9,6 +9,7 @@ export type PostHogEventProperties = Record<
 
 let posthogEnabled = false;
 let initializedApiKey: string | null = null;
+let initScheduled = false;
 
 export function initPostHog({
   apiKey,
@@ -24,15 +25,33 @@ export function initPostHog({
     return;
   }
 
-  if (!posthogEnabled || initializedApiKey !== resolvedKey) {
+  if (posthogEnabled && initializedApiKey === resolvedKey) {
+    return;
+  }
+
+  if (initScheduled && initializedApiKey === resolvedKey) {
+    return;
+  }
+
+  initScheduled = true;
+  initializedApiKey = resolvedKey;
+
+  const runInit = (): void => {
     posthog.init(resolvedKey, {
       api_host: resolvedHost,
       capture_pageview: true,
       person_profiles: "identified_only",
     });
     posthogEnabled = true;
-    initializedApiKey = resolvedKey;
+    initScheduled = false;
+  };
+
+  if ("requestIdleCallback" in window) {
+    window.requestIdleCallback(() => runInit(), { timeout: 1500 });
+    return;
   }
+
+  globalThis.setTimeout(runInit, 1);
 }
 
 export function capturePostHogEvent(

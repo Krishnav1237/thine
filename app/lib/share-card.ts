@@ -1,7 +1,5 @@
 "use client";
 
-import html2canvas from "html2canvas";
-
 interface ShareResultFeedback {
   shared: boolean;
   copied: boolean;
@@ -61,7 +59,12 @@ export async function generateShareImage(
 
   await new Promise((resolve) => window.requestAnimationFrame(() => resolve(null)));
 
-  const scale = Math.min(3, Math.max(2, window.devicePixelRatio || 1));
+  const { default: html2canvas } = await import("html2canvas");
+  const viewportIsCompact = window.matchMedia("(max-width: 720px)").matches;
+  const deviceScale = window.devicePixelRatio || 1;
+  const scale = viewportIsCompact
+    ? Math.min(2, Math.max(1.6, deviceScale))
+    : Math.min(2.4, Math.max(1.8, deviceScale));
   const canvas = await html2canvas(node, {
     backgroundColor: null,
     scale,

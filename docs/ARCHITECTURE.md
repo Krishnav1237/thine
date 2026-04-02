@@ -55,6 +55,7 @@ The architecture is intentionally biased toward graceful degradation:
 
 ### Auth + providers
 - `/Users/HP/thine/app/components/PostHogProvider.tsx`
+- `/Users/HP/thine/app/components/WebVitalsProvider.tsx`
 - `/Users/HP/thine/app/components/auth/AuthProvider.tsx`
 - `/Users/HP/thine/app/components/auth/AuthModal.tsx`
 - `/Users/HP/thine/app/components/auth/AuthPromptCard.tsx`
@@ -72,6 +73,8 @@ The architecture is intentionally biased toward graceful degradation:
 - `/Users/HP/thine/app/lib/quiz-session.ts`
 - `/Users/HP/thine/app/lib/retention.ts`
 - `/Users/HP/thine/app/lib/share-card.ts`
+- `/Users/HP/thine/app/lib/posthog.ts`
+- `/Users/HP/thine/app/lib/web-vitals.ts`
 - `/Users/HP/thine/app/lib/streak.ts`
 - `/Users/HP/thine/app/lib/xp.ts`
 - `/Users/HP/thine/app/lib/report-metadata.ts`
@@ -162,6 +165,7 @@ Primary ownership:
 - timeboxed XP views
 - current-user highlighting
 - anonymous-access leaderboard browsing
+- cached high-read leaderboard payloads
 
 Key files:
 - `/Users/HP/thine/app/leaderboard/page.tsx`
@@ -174,9 +178,11 @@ Primary ownership:
 - recent quiz history
 - recent arena history
 - quick actions back into product loops
+- client-side cached snapshots for faster return visits
 
 Key files:
 - `/Users/HP/thine/app/dashboard/page.tsx`
+- `/Users/HP/thine/app/dashboard/DashboardClient.tsx`
 - `/Users/HP/thine/app/dashboard/loading.tsx`
 - `/Users/HP/thine/app/lib/supabase/server.ts`
 
@@ -202,6 +208,7 @@ OG route:
 - site URL wiring
 - `AuthProvider`
 - `PostHogProvider`
+- `WebVitalsProvider`
 - Vercel Analytics
 
 ### Important note
@@ -210,6 +217,9 @@ PostHog is passed env values from the server layout into the client provider bec
 - `NEXTPUBLICPOSTHOG_HOST`
 
 Those are intentionally not read directly from client code as `NEXT_PUBLIC_*` values.
+
+### Runtime instrumentation note
+`WebVitalsProvider` is mounted globally so route-level performance telemetry is collected consistently without each page wiring its own listener.
 
 ## 5. Anonymous-First State Model
 

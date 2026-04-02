@@ -1,13 +1,17 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useAuth } from "../hooks/useAuth";
 import { thineLinks } from "../lib/thine-links";
-import AuthModal from "./auth/AuthModal";
 import StreakCounter from "./shared/StreakCounter";
+
+const AuthModal = dynamic(() => import("./auth/AuthModal"), {
+  ssr: false,
+});
 
 const isTestPath = (pathname: string): boolean =>
   pathname === "/" ||
@@ -33,7 +37,7 @@ export default function BrandHeader(): React.JSX.Element {
       return;
     }
 
-    const handlePointerDown = (event: MouseEvent): void => {
+    const handlePointerDown = (event: PointerEvent): void => {
       if (!headerPanelRef.current?.contains(event.target as Node)) {
         setMenuOpen(false);
         setMobileNavOpen(false);
@@ -47,11 +51,11 @@ export default function BrandHeader(): React.JSX.Element {
       }
     };
 
-    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("pointerdown", handlePointerDown);
     document.addEventListener("keydown", handleEscape);
 
     return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleEscape);
     };
   }, [menuOpen, mobileNavOpen]);
@@ -74,9 +78,9 @@ export default function BrandHeader(): React.JSX.Element {
       return null;
     }
 
-    const xp = profile?.total_xp ?? 0;
-    return xp > 0 ? `${displayName} · ${xp} XP` : displayName;
-  }, [displayName, isLoggedIn, profile?.total_xp]);
+    return displayName;
+  }, [displayName, isLoggedIn]);
+  const showDashboardTab = isLoggedIn || loading;
 
   return (
     <>
@@ -136,6 +140,10 @@ export default function BrandHeader(): React.JSX.Element {
                 >
                   Dashboard
                 </Link>
+              ) : showDashboardTab ? (
+                <span className="site-tab site-tab-placeholder" aria-hidden="true">
+                  Dashboard
+                </span>
               ) : null}
             </nav>
 
@@ -209,6 +217,11 @@ export default function BrandHeader(): React.JSX.Element {
                     ) : null}
                   </div>
                 </div>
+              ) : loading ? (
+                <div className="site-auth-placeholder" aria-hidden="true">
+                  <span className="site-auth-placeholder-pill site-auth-placeholder-pill--sm" />
+                  <span className="site-auth-placeholder-pill" />
+                </div>
               ) : !loading ? (
                 <div className="site-auth-actions">
                   <button
@@ -240,13 +253,15 @@ export default function BrandHeader(): React.JSX.Element {
         </div>
       </header>
 
-      <AuthModal
-        isOpen={isAuthOpen}
-        sourcePage={`nav:${pathname}`}
-        trigger="header"
-        defaultTab={authTab}
-        onClose={() => setIsAuthOpen(false)}
-      />
+      {isAuthOpen ? (
+        <AuthModal
+          isOpen={isAuthOpen}
+          sourcePage={`nav:${pathname}`}
+          trigger="header"
+          defaultTab={authTab}
+          onClose={() => setIsAuthOpen(false)}
+        />
+      ) : null}
     </>
   );
 }

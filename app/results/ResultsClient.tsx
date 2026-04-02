@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -9,7 +10,6 @@ import { capturePostHogEvent } from "../components/PostHogProvider";
 import DailyCheckInCard from "../components/DailyCheckInCard";
 import PlaybookCard from "../components/PlaybookCard";
 import RankBadge from "../components/shared/RankBadge";
-import ShareCard from "../components/shared/ShareCard";
 import StreakCounter from "../components/shared/StreakCounter";
 import XPAnimation from "../components/shared/XPAnimation";
 import {
@@ -44,6 +44,10 @@ import {
 import type { Json, RankTier } from "../lib/supabase/types";
 import { thineLinks } from "../lib/thine-links";
 import { useAuth } from "../hooks/useAuth";
+
+const ShareCard = dynamic(() => import("../components/shared/ShareCard"), {
+  ssr: false,
+});
 
 const REQUIRED_CHALLENGE_COMPLETIONS = 3;
 const SHARE_UNLOCK_KEY = "thine-share-unlocked";
@@ -80,6 +84,7 @@ export default function ResultsClient({ score }: { score: number }) {
     key: string;
     url: string;
   } | null>(null);
+  const [shareCardMounted, setShareCardMounted] = useState(false);
   const [includeNameInShare, setIncludeNameInShare] = useState(() =>
     Boolean(readQuizSession()?.profile?.name)
   );
@@ -134,6 +139,33 @@ export default function ResultsClient({ score }: { score: number }) {
   }, []);
 
   useEffect(() => {
+    if (shareCardMounted || typeof window === "undefined") {
+      return;
+    }
+
+    let cancelled = false;
+    const mount = () => {
+      if (!cancelled) {
+        setShareCardMounted(true);
+      }
+    };
+
+    if ("requestIdleCallback" in window) {
+      const idleId = window.requestIdleCallback(mount, { timeout: 1800 });
+      return () => {
+        cancelled = true;
+        window.cancelIdleCallback(idleId);
+      };
+    }
+
+    const timer = globalThis.setTimeout(mount, 1200);
+    return () => {
+      cancelled = true;
+      globalThis.clearTimeout(timer);
+    };
+  }, [shareCardMounted]);
+
+  useEffect(() => {
     if (!refId) {
       return;
     }
@@ -150,9 +182,15 @@ export default function ResultsClient({ score }: { score: number }) {
 
     void refreshCompletionCount();
 
-    const intervalId = window.setInterval(() => {
-      void refreshCompletionCount();
-    }, 15000);
+    const shouldPoll =
+      bonusUnlocked && completionCount < REQUIRED_CHALLENGE_COMPLETIONS;
+    const intervalId = shouldPoll
+      ? window.setInterval(() => {
+          if (document.visibilityState === "visible") {
+            void refreshCompletionCount();
+          }
+        }, 30000)
+      : null;
 
     const handleFocus = () => {
       void refreshCompletionCount();
@@ -162,10 +200,12 @@ export default function ResultsClient({ score }: { score: number }) {
 
     return () => {
       active = false;
-      window.clearInterval(intervalId);
+      if (intervalId) {
+        window.clearInterval(intervalId);
+      }
       window.removeEventListener("focus", handleFocus);
     };
-  }, [refId]);
+  }, [bonusUnlocked, completionCount, refId]);
 
   const answers = useMemo(
     () => session?.answers ?? EMPTY_ANSWERS,
@@ -326,6 +366,19 @@ export default function ResultsClient({ score }: { score: number }) {
   const sharePreviewHref =
     savedShareUrl?.key === shareCacheKey ? savedShareUrl.url : sharePath;
 
+  const ensureShareCardMounted = async (): Promise<void> => {
+    if (shareCardMounted) {
+      return;
+    }
+
+    setShareCardMounted(true);
+    await new Promise<void>((resolve) => {
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => resolve());
+      });
+    });
+  };
+
   const resolveShareUrl = async () => {
     const fallbackUrl = new URL(sharePath, window.location.origin).toString();
 
@@ -399,6 +452,7 @@ export default function ResultsClient({ score }: { score: number }) {
   const handleImageShare = async () => {
     capturePostHogEvent("share_clicked", { type: "image" });
     try {
+      await ensureShareCardMounted();
       const shareUrl = await resolveShareUrl();
       const result = await shareResult({
         cardRef: shareCardRef,
@@ -539,94 +593,104 @@ export default function ResultsClient({ score }: { score: number }) {
                 <span className="chip">Public scorecard</span>
               </div>
             </div>
-          </div>
-        </div>
-
-        <div className="result-share-actions">
-          <div className="result-share-cta">
-            <span className="section-eyebrow">Share your scorecard</span>
-            <p className="section-copy">
-              Share your scorecard so friends can compare and unlock the full
-              analysis.
-            </p>
-          </div>
-          <div className="share-spotlight-actions">
-            <button onClick={handleShare} className="btn-primary" type="button">
-              Share result
-            </button>
-            <button
-              onClick={handleImageShare}
-              className="btn-secondary"
-              type="button"
-            >
-              Share as image
-            </button>
-            <a
-              href={sharePreviewHref}
-              className="btn-secondary"
-              onClick={() => capturePostHogEvent("share_clicked", { type: "preview" })}
-            >
-              Preview
-            </a>
+            <div className="result-share-actions">
+              <div className="share-spotlight-actions">
+                <button onClick={handleShare} className="btn-primary" type="button">
+                  Share result
+                </button>
+                <button
+                  onClick={handleImageShare}
+                  className="btn-secondary"
+                  type="button"
+                >
+                  Share as image
+                </button>
+                <a
+                  href={sharePreviewHref}
+                  className="btn-secondary"
+                  onClick={() =>
+                    capturePostHogEvent("share_clicked", { type: "preview" })
+                  }
+                >
+                  Preview
+                </a>
+              </div>
+              <p className="results-share-note">
+                Share your scorecard so friends can compare and unlock the full
+                analysis.
+              </p>
+            </div>
           </div>
         </div>
       </section>
 
-      <AuthPromptCard sourcePage="results" xpEarned={quizSync?.xpEarned ?? 0} />
-
-      <DailyCheckInCard name={quizProfile?.name} context="results" />
+      <div className="results-support-grid">
+        <AuthPromptCard sourcePage="results" xpEarned={quizSync?.xpEarned ?? 0} />
+        <DailyCheckInCard name={quizProfile?.name} context="results" />
+      </div>
 
       <section className="report-card action-card">
-        <div className="section-heading">
-          <span className="section-eyebrow">Next steps</span>
-          <h2 className="conversion-title">Challenge friends or retake in 3 days.</h2>
-          <p className="section-copy">
-            Full analysis unlocks after you share and{" "}
-            {REQUIRED_CHALLENGE_COMPLETIONS} friends finish from your link.
-          </p>
-        </div>
-
-        <div className="action-row">
-          <button
-            onClick={handleChallengeShare}
-            className="btn-primary"
-            type="button"
-          >
-            Challenge friends
-          </button>
-          <Link href="/arena" className="btn-secondary">
-            Play Hot Takes Arena
-          </Link>
-          <button onClick={handleRetake} className="btn-secondary" type="button">
-            Retake in 3 Days
-          </button>
-        </div>
-
-        <div className="action-subrow">
-          <label
-            className={`share-privacy-toggle ${shareToggleDisabled ? "disabled" : ""}`}
-          >
-            <input
-              type="checkbox"
-              checked={includeNameInShare}
-              onChange={(event) => setIncludeNameInShare(event.target.checked)}
-              disabled={shareToggleDisabled}
-            />
-            <span>Include my name in the share link</span>
-          </label>
-          <div className="results-share-note">
-            Challenge links include your score and optional name.
+        <div className="action-card-grid">
+          <div className="section-heading action-card-copy">
+            <span className="section-eyebrow">Next steps</span>
+            <h2 className="conversion-title">
+              Challenge friends or retake in 3 days.
+            </h2>
+            <p className="section-copy">
+              Full analysis unlocks after you share and{" "}
+              {REQUIRED_CHALLENGE_COMPLETIONS} friends finish from your link.
+            </p>
           </div>
-        </div>
 
-        <div className="action-progress">
-          <span className="action-progress-count">
-            {Math.min(completionCount, REQUIRED_CHALLENGE_COMPLETIONS)}/
-            {REQUIRED_CHALLENGE_COMPLETIONS}
-          </span>
-          <span className="action-progress-copy">
-            Challenge completions recorded
-          </span>
+          <div className="action-card-rail">
+            <div className="action-row">
+              <button
+                onClick={handleChallengeShare}
+                className="btn-primary"
+                type="button"
+              >
+                Challenge friends
+              </button>
+              <Link href="/arena" className="btn-secondary">
+                Play Hot Takes Arena
+              </Link>
+              <button
+                onClick={handleRetake}
+                className="btn-secondary"
+                type="button"
+              >
+                Retake in 3 Days
+              </button>
+            </div>
+
+            <div className="action-utility-grid">
+              <label
+                className={`share-privacy-toggle ${shareToggleDisabled ? "disabled" : ""}`}
+              >
+                <input
+                  type="checkbox"
+                  checked={includeNameInShare}
+                  onChange={(event) => setIncludeNameInShare(event.target.checked)}
+                  disabled={shareToggleDisabled}
+                />
+                <span>Include my name in the share link</span>
+              </label>
+
+              <div className="action-progress">
+                <span className="action-progress-count">
+                  {Math.min(completionCount, REQUIRED_CHALLENGE_COMPLETIONS)}/
+                  {REQUIRED_CHALLENGE_COMPLETIONS}
+                </span>
+                <span className="action-progress-copy">
+                  Challenge completions recorded
+                </span>
+              </div>
+
+              <div className="results-share-note">
+                Challenge links include your score and optional name.
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -742,12 +806,6 @@ export default function ResultsClient({ score }: { score: number }) {
         </div>
       </details>
 
-      <div className="results-footer-row">
-        <button onClick={handleRetake} className="text-link-button" type="button">
-          Take the diagnostic again
-        </button>
-      </div>
-
       <div
         className={`share-toast ${showToast ? "visible" : ""}`}
         role="alert"
@@ -756,16 +814,18 @@ export default function ResultsClient({ score }: { score: number }) {
         {toastMessage}
       </div>
 
-      <ShareCard
-        cardRef={shareCardRef}
-        variant="quiz"
-        name={shareDisplayName ?? quizProfile?.name}
-        score={normalizedScore}
-        bandName={band.name}
-        dimensions={analysis.dimensionScores}
-        streak={currentStreak}
-        tier={rankTier}
-      />
+      {shareCardMounted ? (
+        <ShareCard
+          cardRef={shareCardRef}
+          variant="quiz"
+          name={shareDisplayName ?? quizProfile?.name}
+          score={normalizedScore}
+          bandName={band.name}
+          dimensions={analysis.dimensionScores}
+          streak={currentStreak}
+          tier={rankTier}
+        />
+      ) : null}
     </main>
   );
 }

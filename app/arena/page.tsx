@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 
@@ -9,7 +10,6 @@ import BrandHeader from "../components/BrandHeader";
 import DailyPackBadge from "../components/DailyPackBadge";
 import MatchCard from "../components/MatchCard";
 import RankBadge from "../components/shared/RankBadge";
-import ShareCard from "../components/shared/ShareCard";
 import StreakCounter from "../components/shared/StreakCounter";
 import XPAnimation from "../components/shared/XPAnimation";
 import { HOT_TAKES, type HotTake } from "../data/hot-takes";
@@ -31,6 +31,10 @@ import {
 } from "../lib/supabase/sync";
 import type { Json, RankTier } from "../lib/supabase/types";
 import { useAuth } from "../hooks/useAuth";
+
+const ShareCard = dynamic(() => import("../components/shared/ShareCard"), {
+  ssr: false,
+});
 
 type ArenaResponse = {
   takeId: number;
@@ -80,8 +84,8 @@ const SESSION_PRESETS: Record<
   avid: { label: "Avid", count: 12, description: "Deep loop · 4-5 min" },
 };
 const DEFAULT_SESSION_MODE: SessionMode = "daily";
-const REVEAL_DURATION_MS = 1400;
-const EXIT_DURATION_MS = 260;
+const REVEAL_DURATION_MS = 900;
+const EXIT_DURATION_MS = 220;
 const SWIPE_THRESHOLD = 45;
 const SWIPE_FLICK_THRESHOLD = 24;
 const SWIPE_FLICK_TIME_MS = 260;
@@ -406,6 +410,7 @@ export default function ArenaPage() {
   const [arenaSessionId, setArenaSessionId] = useState<string>(() =>
     createArenaSessionId()
   );
+  const [shareCardMounted, setShareCardMounted] = useState(false);
   const [crowdStats, setCrowdStats] = useState<Record<string, ArenaCrowdStat>>(
     {}
   );
@@ -552,6 +557,45 @@ export default function ArenaPage() {
   useEffect(() => {
     savedShareUrlRef.current = null;
   }, [profileName, profileRole]);
+
+  useEffect(() => {
+    if (
+      phase !== "summary" ||
+      shareCardMounted ||
+      typeof window === "undefined"
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+    const mount = () => {
+      if (!cancelled) {
+        setShareCardMounted(true);
+      }
+    };
+
+    if ("requestIdleCallback" in window) {
+      const idleId = window.requestIdleCallback(mount, { timeout: 1600 });
+      return () => {
+        cancelled = true;
+        window.cancelIdleCallback(idleId);
+      };
+    }
+
+    const timer = globalThis.setTimeout(mount, 1000);
+    return () => {
+      cancelled = true;
+      globalThis.clearTimeout(timer);
+    };
+  }, [phase, shareCardMounted]);
+
+  useEffect(() => {
+    if (phase !== "summary") {
+      return;
+    }
+
+    storeProfile(profileName ?? "", profileRole ?? "");
+  }, [phase, profileName, profileRole]);
 
   useEffect(() => {
     if (!xpBurst) {
@@ -904,6 +948,19 @@ export default function ArenaPage() {
     );
   };
 
+  const ensureShareCardMounted = async (): Promise<void> => {
+    if (shareCardMounted) {
+      return;
+    }
+
+    setShareCardMounted(true);
+    await new Promise<void>((resolve) => {
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => resolve());
+      });
+    });
+  };
+
   const copyToClipboard = async (text: string) => {
     if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
       await navigator.clipboard.writeText(text);
@@ -1028,6 +1085,7 @@ export default function ArenaPage() {
 
     capturePostHogEvent("share_clicked", { type: "image" });
     try {
+      await ensureShareCardMounted();
       const shareLink = await resolveShareUrl();
       const result = await shareResult({
         cardRef: shareCardRef,
@@ -1100,6 +1158,8 @@ export default function ArenaPage() {
 
   return (
     <div className="page-container arena-page">
+      <div className="bg-gradient" />
+      <div className="bg-grid" />
       <div className="arena-gradient" />
       <div className="arena-noise" />
 
@@ -1130,7 +1190,6 @@ export default function ArenaPage() {
                       onChange={(event) => {
                         const next = event.target.value;
                         setProfileName(next || null);
-                        storeProfile(next, profileRole ?? "");
                       }}
                       placeholder="Your name"
                       aria-label="Your name"
@@ -1142,7 +1201,6 @@ export default function ArenaPage() {
                       onChange={(event) => {
                         const next = event.target.value;
                         setProfileRole(next || null);
-                        storeProfile(profileName ?? "", next);
                       }}
                       placeholder="Role (optional)"
                       aria-label="Your role"
@@ -1426,7 +1484,7 @@ export default function ArenaPage() {
           {shareNotice}
         </div>
 
-        {sessionSummary ? (
+        {sessionSummary && shareCardMounted ? (
           <ShareCard
             cardRef={shareCardRef}
             variant="arena"

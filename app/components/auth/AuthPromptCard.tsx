@@ -1,12 +1,16 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { useAuth } from "../../hooks/useAuth";
-import AuthModal from "./AuthModal";
 import RankBadge from "../shared/RankBadge";
 import StreakCounter from "../shared/StreakCounter";
 import { capturePostHogEvent } from "../PostHogProvider";
+
+const AuthModal = dynamic(() => import("./AuthModal"), {
+  ssr: false,
+});
 
 function dismissedKey(sourcePage: string) {
   return `thine-auth-prompt-dismissed:${sourcePage}`;
@@ -119,12 +123,14 @@ export default function AuthPromptCard({
         )}
       </section>
 
-      <AuthModal
-        isOpen={isOpen}
-        sourcePage={sourcePage}
-        trigger={sourcePage}
-        onClose={() => setIsOpen(false)}
-      />
+      {isOpen ? (
+        <AuthModal
+          isOpen={isOpen}
+          sourcePage={sourcePage}
+          trigger={sourcePage}
+          onClose={() => setIsOpen(false)}
+        />
+      ) : null}
     </>
   );
 }

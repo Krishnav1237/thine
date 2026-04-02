@@ -38,6 +38,7 @@ import { recordDailyActivity } from "../lib/retention";
 export default function QuizPage() {
   const router = useRouter();
   const transitionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const QUESTION_TRANSITION_MS = 220;
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<number[]>([]);
@@ -229,7 +230,7 @@ export default function QuizPage() {
         startTransition(() => {
           router.push(`/results?score=${totalScore}`);
         });
-      }, 320);
+      }, QUESTION_TRANSITION_MS);
     },
     [
       answers,
@@ -243,6 +244,7 @@ export default function QuizPage() {
       router,
       sessionMode,
       dailyKey,
+      QUESTION_TRANSITION_MS,
     ]
   );
 

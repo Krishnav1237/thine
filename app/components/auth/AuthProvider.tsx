@@ -14,6 +14,7 @@ import { migrateLocalDataToSupabase } from "../../lib/supabase/migrate";
 import {
   ensureProfileRow,
   fetchProfile,
+  syncLocalPlayerStatsFromProfile,
 } from "../../lib/supabase/sync";
 import { getSupabaseBrowserClient } from "../../lib/supabase/client";
 import type { ProfileRow } from "../../lib/supabase/types";
@@ -65,16 +66,25 @@ async function hydrateUserState({
     return;
   }
 
-  try {
-    const ensured = await ensureProfileRow({
-      user: nextSession.user,
-    });
+  let nextProfile: ProfileRow | null = null;
 
-    setProfile(ensured ?? (await fetchProfile(nextSession.user.id)));
-    await migrateLocalDataToSupabase(nextSession.user.id);
+  try {
+    nextProfile = await fetchProfile(nextSession.user.id);
+
+    if (!nextProfile) {
+      nextProfile = await ensureProfileRow({
+        user: nextSession.user,
+      });
+    }
   } catch {
-    setProfile(await fetchProfile(nextSession.user.id));
+    nextProfile = await fetchProfile(nextSession.user.id);
   } finally {
+    setProfile(nextProfile);
+    syncLocalPlayerStatsFromProfile(nextProfile);
+    setLoading(false);
+
+    void migrateLocalDataToSupabase(nextSession.user.id);
+
     if (typeof window !== "undefined") {
       const pendingRaw = window.localStorage.getItem(PENDING_AUTH_KEY);
 
@@ -99,8 +109,6 @@ async function hydrateUserState({
         }
       }
     }
-
-    setLoading(false);
   }
 }
 
@@ -270,7 +278,9 @@ export function AuthProvider({
       return;
     }
 
-    setProfile(await fetchProfile(user.id));
+    const nextProfile = await fetchProfile(user.id);
+    setProfile(nextProfile);
+    syncLocalPlayerStatsFromProfile(nextProfile);
   };
 
   return (

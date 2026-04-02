@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { Analytics } from "@vercel/analytics/next";
 import PostHogProvider from "./components/PostHogProvider";
+import WebVitalsProvider from "./components/WebVitalsProvider";
 import { AuthProvider } from "./components/auth/AuthProvider";
 import "./globals.css";
 import { siteUrl } from "./lib/site";
@@ -49,6 +50,7 @@ export default function RootLayout({
       <body>
         <AuthProvider>
           <PostHogProvider apiKey={posthogKey} host={posthogHost}>
+            <WebVitalsProvider />
             {children}
           </PostHogProvider>
         </AuthProvider>

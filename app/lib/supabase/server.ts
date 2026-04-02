@@ -4,6 +4,9 @@ import { cookies } from "next/headers";
 
 import type { Database } from "./types";
 
+let adminClient: SupabaseClient<Database> | null | undefined;
+let publicClient: SupabaseClient<Database> | null | undefined;
+
 function getSupabaseEnv(): {
   url: string;
   anonKey: string;
@@ -33,6 +36,13 @@ export async function getSupabaseServerClient(): Promise<SupabaseClient<Database
   }
 
   const cookieStore = await cookies();
+  const hasSupabaseCookie = cookieStore
+    .getAll()
+    .some(({ name }: { name: string }) => name.startsWith("sb-"));
+
+  if (!hasSupabaseCookie) {
+    return null;
+  }
 
   return createServerClient<Database>(env.url, env.anonKey, {
     cookies: {
@@ -61,10 +71,37 @@ export function getSupabaseAdminClient(): SupabaseClient<Database> | null {
     return null;
   }
 
-  return createClient<Database>(env.url, env.serviceRoleKey, {
+  if (typeof adminClient !== "undefined") {
+    return adminClient;
+  }
+
+  adminClient = createClient<Database>(env.url, env.serviceRoleKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
     },
   });
+
+  return adminClient;
+}
+
+export function getSupabasePublicClient(): SupabaseClient<Database> | null {
+  const env = getSupabaseEnv();
+
+  if (!env.configured) {
+    return null;
+  }
+
+  if (typeof publicClient !== "undefined") {
+    return publicClient;
+  }
+
+  publicClient = createClient<Database>(env.url, env.anonKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
+
+  return publicClient;
 }

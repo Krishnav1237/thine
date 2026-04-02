@@ -63,6 +63,15 @@ Important note:
 - `app/layout.tsx` reads them on the server and passes them into `PostHogProvider`
 - if the key is missing, PostHog is a no-op
 
+### Built-in browser telemetry
+No extra env var is needed for client-side performance telemetry.
+
+When the app runs in the browser:
+- `app/components/WebVitalsProvider.tsx` subscribes to `useReportWebVitals`
+- values are normalized in `app/lib/web-vitals.ts`
+- latest snapshots are persisted to `localStorage["thine-web-vitals"]`
+- if PostHog is enabled, each metric is sent as `web_vital_reported`
+
 ## 4. Supabase Setup
 
 ### Core tables expected by the app
@@ -169,7 +178,33 @@ With Supabase configured:
 5. verify public share route renders
 6. repeat on Arena summary
 
-## 8. Deployment Notes
+## 8. Mobile QA Workflow
+
+The repository now includes a lightweight Playwright smoke suite for the highest-risk mobile flows:
+- `/Users/HP/thine/tests/mobile-premium.spec.ts`
+- `/Users/HP/thine/tests/premium-shell.spec.ts`
+
+Install Chromium once:
+
+```bash
+npx playwright install chromium
+```
+
+Run the mobile suite against a local dev server:
+
+```bash
+BASE_URL=http://localhost:3000 npx playwright test tests/mobile-premium.spec.ts --reporter=line --workers=1
+```
+
+Current coverage:
+- landing page renders cleanly on a phone-sized viewport
+- mobile navigation opens correctly
+- no horizontal overflow on landing, quiz results, or arena summary
+- quick quiz can complete end-to-end
+- daily arena can complete end-to-end
+- desktop shell spacing stays consistent across landing, results, and leaderboard
+
+## 9. Deployment Notes
 
 ### Vercel
 The app is well-suited to Vercel because it already uses:
@@ -192,7 +227,7 @@ Global metadata is configured in:
 OG generation is handled by:
 - `/Users/HP/thine/app/api/og/route.tsx`
 
-## 9. Operational Verification Checklist
+## 10. Operational Verification Checklist
 
 Run this list after meaningful product or persistence changes.
 
@@ -223,8 +258,10 @@ Run this list after meaningful product or persistence changes.
 - PostHog env vars present → events emit
 - login identifies user
 - logout resets analytics identity
+- `thine-web-vitals` is populated after browsing a few routes
+- `web_vital_reported` appears in PostHog when analytics is enabled
 
-## 10. Common Failure Modes
+## 11. Common Failure Modes
 
 ### Supabase missing or misconfigured
 Symptoms:
@@ -249,6 +286,13 @@ Symptoms:
 
 Expected behavior:
 - zero runtime breakage
+
+### Playwright browsers missing
+Symptoms:
+- `npx playwright test` fails before running specs
+
+Expected fix:
+- run `npx playwright install chromium`
 
 ### Migrations not run
 Symptoms:

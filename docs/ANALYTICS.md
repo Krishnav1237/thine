@@ -5,6 +5,7 @@ This document covers the current analytics instrumentation in Thine.
 The analytics stack is intentionally simple:
 - Vercel Analytics is included globally
 - PostHog is used for event capture and identity
+- browser Web Vitals are captured through `next/web-vitals`
 - PostHog is optional and safely disabled when env vars are missing
 
 ## 1. Analytics Goals
@@ -28,6 +29,9 @@ File:
 Root layout file:
 - `/Users/HP/thine/app/layout.tsx`
 
+Performance telemetry provider:
+- `/Users/HP/thine/app/components/WebVitalsProvider.tsx`
+
 ### Env vars
 - `NEXTPUBLICPOSTHOG_KEY`
 - `NEXTPUBLICPOSTHOG_HOST`
@@ -36,6 +40,9 @@ If `NEXTPUBLICPOSTHOG_KEY` is empty or missing:
 - PostHog does not initialize
 - event helper calls become safe no-ops
 - local development remains clean and usable
+
+### Initialization timing
+PostHog is intentionally deferred until the browser is idle via `requestIdleCallback` (or a timeout fallback) so analytics setup does not compete with first paint on slower devices.
 
 ### Default host
 If `NEXTPUBLICPOSTHOG_HOST` is missing, the default host is:
@@ -66,7 +73,51 @@ Behavior:
 - if PostHog is not initialized, it returns immediately
 - event callers do not need to guard every call site manually
 
-## 5. Event Inventory
+## 5. Web Vitals Instrumentation
+
+### Provider
+File:
+- `/Users/HP/thine/app/components/WebVitalsProvider.tsx`
+
+### Storage helper
+File:
+- `/Users/HP/thine/app/lib/web-vitals.ts`
+
+### What it records
+The provider listens to `useReportWebVitals` and records the latest browser-reported values for:
+
+- `CLS`
+- `FCP`
+- `INP`
+- `LCP`
+- `TTFB`
+
+### Local persistence
+Latest metric snapshots are persisted into:
+- `localStorage["thine-web-vitals"]`
+
+Stored fields include:
+- vital name
+- normalized value
+- delta
+- rating
+- pathname
+- recorded timestamp
+- navigation type when available
+
+### Analytics event
+Each recorded vital also emits:
+- `web_vital_reported`
+
+Properties:
+- `name`
+- `value`
+- `delta`
+- `rating`
+- `pathname`
+- `navigationType`
+
+## 6. Event Inventory
 
 ### `quiz_started`
 Location:
@@ -177,7 +228,22 @@ Triggered when:
 Properties:
 - `location`: `results` or `arena`
 
-## 6. Event-to-Surface Mapping
+### `web_vital_reported`
+Location:
+- `/Users/HP/thine/app/components/WebVitalsProvider.tsx`
+
+Triggered when:
+- Next.js reports a supported browser web vital
+
+Properties:
+- `name`
+- `value`
+- `delta`
+- `rating`
+- `pathname`
+- `navigationType`
+
+## 7. Event-to-Surface Mapping
 
 ### Quiz funnel
 - `quiz_started`
@@ -201,7 +267,11 @@ Properties:
 - `auth_completed`
 - `email_captured`
 
-## 7. Practical Questions You Can Answer Today
+### Runtime quality funnel
+- `web_vital_reported`
+- downstream route or feature events on the same pathname
+
+## 8. Practical Questions You Can Answer Today
 
 With the current events, you can answer:
 
@@ -211,8 +281,10 @@ With the current events, you can answer:
 - are Arena users more likely to authenticate than quiz users?
 - does the header auth entry point convert better than results or arena prompts?
 - how often do users prefer email capture over authentication?
+- which routes are producing weak LCP/INP values on real devices?
+- are heavy share or summary surfaces correlated with worse vitals on mobile?
 
-## 8. Gaps In Current Instrumentation
+## 9. Gaps In Current Instrumentation
 
 The analytics layer is useful, but not yet exhaustive. It does not currently answer everything.
 

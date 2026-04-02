@@ -122,6 +122,32 @@ function writeLocalPlayerStats(stats: LocalPlayerStats) {
   window.localStorage.setItem(LOCAL_PLAYER_KEY, JSON.stringify(stats));
 }
 
+export function syncLocalPlayerStatsFromProfile(
+  profile: ProfileRow | null
+): void {
+  if (!profile) {
+    return;
+  }
+
+  const fallback = defaultLocalPlayerStats();
+  const rankTier =
+    profile.ranktier === "silver" ||
+    profile.ranktier === "gold" ||
+    profile.ranktier === "platinum" ||
+    profile.ranktier === "diamond"
+      ? profile.ranktier
+      : "bronze";
+
+  writeLocalPlayerStats({
+    totalXP: profile.total_xp ?? fallback.totalXP,
+    currentStreak: profile.current_streak ?? fallback.currentStreak,
+    longestStreak: profile.longest_streak ?? fallback.longestStreak,
+    lastActiveDate: profile.lastactivedate ?? fallback.lastActiveDate,
+    piScore: Math.round(profile.pi_score ?? fallback.piScore),
+    rankTier,
+  });
+}
+
 function shouldAwardFirstActivityBonus() {
   if (typeof window === "undefined") {
     return true;
@@ -382,22 +408,21 @@ export async function saveQuizAttempt(
   const currentTotalXP = currentProfile?.total_xp ?? localStats.totalXP;
   const nextTotalXP = currentTotalXP + xp.totalXP;
   const nextPiScore = (() => {
-    const currentPi = currentProfile?.pi_score ?? localStats.piScore;
+    if (typeof data.normalized_score === "number") {
+      return Math.round(data.normalized_score);
+    }
+
     const attemptPi = averageDimensionPercent(
       Array.isArray(data.dimension_scores)
         ? (data.dimension_scores as Array<{ percent?: number | null }>)
         : null
     );
 
-    if (!attemptPi) {
-      return currentPi;
-    }
-
-    if (!currentPi) {
+    if (attemptPi) {
       return attemptPi;
     }
 
-    return Math.round((currentPi + attemptPi) / 2);
+    return Math.round(currentProfile?.pi_score ?? localStats.piScore);
   })();
 
   const nextLocal = buildLocalStats({

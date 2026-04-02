@@ -10,7 +10,7 @@ Thine is a Next.js 16 App Router product with two core loops — a Personal Inte
 
 ## 2. Current Platform Status
 
-As of April 1, 2026:
+As of April 3, 2026:
 
 - `npm run lint` passes
 - `npm run build` passes
@@ -18,6 +18,9 @@ As of April 1, 2026:
 - Supabase is additive, not required, for core use
 - PostHog is optional and no-ops if its env vars are missing
 - both legacy share and durable share systems exist in parallel
+- Web Vitals are captured globally and can be inspected locally or in PostHog
+- auth modals and hidden share cards are lazily mounted to keep initial route work lighter
+- a Playwright mobile smoke suite exists for landing, quiz, and arena
 
 ## 3. High-Level Product Loops
 
@@ -168,6 +171,9 @@ Logged-in users see:
 ### Analytics
 - `/Users/HP/thine/app/components/PostHogProvider.tsx`
 - `/Users/HP/thine/app/layout.tsx`
+- `/Users/HP/thine/app/components/WebVitalsProvider.tsx`
+- `/Users/HP/thine/app/lib/posthog.ts`
+- `/Users/HP/thine/app/lib/web-vitals.ts`
 
 ## 7. Quiz Product Logic
 
@@ -234,6 +240,8 @@ Arena summary currently computes:
 - normalized percentages
 - dominant stance
 - thinking profile
+- optional crowd percentages for the takes seen in that run
+- optional previous-player comparison data
 
 ### Thinking profiles
 Current profile buckets:
@@ -254,6 +262,13 @@ After completion:
 - the app calls `findarenamatch(...)`
 - if a previous session match exists, a comparison card is shown
 - otherwise the main summary still works without error
+
+### Performance note
+Arena was recently tuned so it feels closer to the rest of the platform:
+- the page now shares the same atmospheric shell language as the report flow
+- gestures resolve faster
+- personalization fields no longer write to localStorage on every keystroke
+- crowd inserts are fire-and-forget and do not block the core animation path
 
 ## 9. Auth Model
 
@@ -387,6 +402,10 @@ Implemented through:
 - `navigator.share()` when possible
 - clipboard + image download fallback otherwise
 
+Recent runtime note:
+- the hidden share card mounts lazily
+- `html2canvas` is imported on demand rather than bundled eagerly
+
 ### OG previews
 Implemented through:
 - `/Users/HP/thine/app/api/og/route.tsx`
@@ -395,6 +414,7 @@ Implemented through:
 
 ### Provider
 - `/Users/HP/thine/app/components/PostHogProvider.tsx`
+- `/Users/HP/thine/app/components/WebVitalsProvider.tsx`
 
 ### Env vars
 - `NEXTPUBLICPOSTHOG_KEY`
@@ -410,10 +430,16 @@ Implemented through:
 - `auth_completed`
 - `email_captured`
 - `authpromptshown`
+- `web_vital_reported`
 
 ### Identity
 - login → `identify`
 - logout → `reset`
+
+### Performance telemetry
+- browser vitals are stored in `localStorage["thine-web-vitals"]`
+- the current helper lives in `/Users/HP/thine/app/lib/web-vitals.ts`
+- PostHog initialization is deferred until the browser is idle
 
 ## 16. Known Degradation Paths
 
@@ -437,7 +463,20 @@ When those conditions happen, the app should fall back to local-only behavior ra
 - `/Users/HP/thine/docs/SETUP_AND_OPERATIONS.md`
 - `/Users/HP/thine/docs/ANALYTICS.md`
 
-## 18. Things A Future Contributor Or LLM Should Not Change Accidentally
+## 18. QA Surface
+
+Automated smoke coverage currently lives in:
+- `/Users/HP/thine/tests/mobile-premium.spec.ts`
+- `/Users/HP/thine/tests/premium-shell.spec.ts`
+
+It covers:
+- mobile landing rendering and nav open
+- quick quiz completion to results
+- daily arena completion to summary
+- no horizontal overflow on the checked paths
+- desktop shell spacing across landing, results, and leaderboard
+
+## 19. Things A Future Contributor Or LLM Should Not Change Accidentally
 
 - quiz scoring math
 - score band thresholds
@@ -449,7 +488,7 @@ When those conditions happen, the app should fall back to local-only behavior ra
 - legacy share fallback behavior
 - anonymous-first product posture
 
-## 19. Prompt Seed For Another LLM
+## 20. Prompt Seed For Another LLM
 
 You can paste this sentence before the rest of the handoff:
 

@@ -15,7 +15,7 @@ This repository is the current source of truth for the product. The docs in `doc
 
 ## Platform Status
 
-As of April 1, 2026:
+As of April 3, 2026:
 
 - `npm run lint` passes
 - `npm run build` passes
@@ -23,6 +23,10 @@ As of April 1, 2026:
 - Supabase is additive, not required, for core use
 - PostHog is optional and no-ops when env vars are missing
 - legacy share routes are still supported alongside the durable share system
+- auth modals are lazy-loaded to keep the initial payload lighter
+- share cards mount on idle and `html2canvas` only loads when image sharing is requested
+- Web Vitals are captured locally and forwarded into PostHog when analytics is enabled
+- a Playwright mobile smoke suite exists for landing, quiz, and arena flows
 
 ## Product Surface
 
@@ -106,6 +110,17 @@ The platform supports both:
 ### Analytics
 - Vercel Analytics is present globally
 - PostHog is optional and initializes only when configured
+- Web Vitals are captured through `next/web-vitals`, persisted locally, and emitted as `web_vital_reported` when PostHog is available
+
+### Performance And Experience
+Recent polish work has focused on keeping the premium look while trimming the “heavy” feeling of the app:
+
+- hidden share cards no longer mount during initial route paint
+- image-sharing dependencies are code-split and loaded on demand
+- auth UI is dynamically loaded instead of living in the first route bundle
+- challenge completion polling only runs while the report is locked and relevant
+- background blur, gradients, and noise are softened on mobile so the app scrolls and animates more smoothly
+- mobile tap targets and nav behavior have been tightened to make the product feel more intentional on phones
 
 ## Route Map
 
@@ -197,6 +212,11 @@ NEXTPUBLICPOSTHOG_KEY=
 NEXTPUBLICPOSTHOG_HOST=https://us.i.posthog.com
 ```
 
+Optional browser performance telemetry:
+- no extra env vars are required
+- `app/components/WebVitalsProvider.tsx` stores the latest browser vitals in `localStorage` under `thine-web-vitals`
+- when PostHog is enabled, those vitals are also sent as `web_vital_reported`
+
 ### 3. Run the migration manually in Supabase
 The latest platform migration file is:
 - `/Users/HP/thine/supabase/migrations/001platformfeatures.sql`
@@ -218,6 +238,27 @@ npm run lint
 npm run build
 npm start
 ```
+
+### 6. Run the mobile smoke suite
+The repository includes focused Playwright smoke suites at:
+- `/Users/HP/thine/tests/mobile-premium.spec.ts`
+- `/Users/HP/thine/tests/premium-shell.spec.ts`
+
+Install the Chromium browser once:
+```bash
+npx playwright install chromium
+```
+
+Then run the suite against a local dev server:
+```bash
+BASE_URL=http://localhost:3000 npx playwright test tests/mobile-premium.spec.ts --reporter=line --workers=1
+```
+
+Current smoke coverage:
+- landing page renders cleanly on mobile without horizontal overflow
+- quick quiz can complete end-to-end and land on results
+- daily arena can complete end-to-end and reach summary
+- desktop header and shell spacing stay stable on landing, results, and leaderboard
 
 ## Documentation Map
 
@@ -264,6 +305,7 @@ npm start
 
 ### Auth + providers
 - `/Users/HP/thine/app/components/PostHogProvider.tsx`
+- `/Users/HP/thine/app/components/WebVitalsProvider.tsx`
 - `/Users/HP/thine/app/components/auth/AuthProvider.tsx`
 - `/Users/HP/thine/app/components/auth/AuthModal.tsx`
 - `/Users/HP/thine/app/components/auth/AuthPromptCard.tsx`
@@ -286,6 +328,8 @@ npm start
 - `/Users/HP/thine/app/lib/report-metadata.ts`
 - `/Users/HP/thine/app/lib/site.ts`
 - `/Users/HP/thine/app/lib/thine-links.ts`
+- `/Users/HP/thine/app/lib/posthog.ts`
+- `/Users/HP/thine/app/lib/web-vitals.ts`
 
 ### Supabase layer
 - `/Users/HP/thine/app/lib/supabase/client.ts`
