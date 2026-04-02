@@ -8,6 +8,17 @@ import EmailCaptureModal from "./EmailCaptureModal";
 
 const EMAIL_CAPTURE_KEY = "thine-email-captured";
 const PENDING_AUTH_KEY = "thine-auth-complete-pending";
+const RATE_LIMIT_COOLDOWN_MS = 30_000;
+
+function isRateLimitError(msg: string): boolean {
+  const lower = msg.toLowerCase();
+  return (
+    lower.includes("rate") ||
+    lower.includes("limit") ||
+    lower.includes("too many") ||
+    lower.includes("429")
+  );
+}
 
 function AuthModalPanel({
   sourcePage,
@@ -32,6 +43,27 @@ function AuthModalPanel({
   const [message, setMessage] = useState("");
   const [showEmailCapture, setShowEmailCapture] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [cooldownUntil, setCooldownUntil] = useState(0);
+  const [cooldownLeft, setCooldownLeft] = useState(0);
+  const lastSubmitRef = useRef(0);
+
+  // Cooldown countdown ticker
+  useEffect(() => {
+    if (cooldownUntil <= Date.now()) {
+      return;
+    }
+
+    const tick = () => {
+      const remaining = Math.max(0, Math.ceil((cooldownUntil - Date.now()) / 1000));
+      setCooldownLeft(remaining);
+    };
+
+    tick();
+    const interval = window.setInterval(tick, 1000);
+    return () => window.clearInterval(interval);
+  }, [cooldownUntil]);
+
+  const isCoolingDown = cooldownLeft > 0;
 
   const handleDismiss = useCallback((): void => {
     onClose();
@@ -100,6 +132,18 @@ function AuthModalPanel({
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+
+    if (isCoolingDown) {
+      return;
+    }
+
+    // Debounce: ignore rapid double-clicks
+    const now = Date.now();
+    if (now - lastSubmitRef.current < 2000) {
+      return;
+    }
+    lastSubmitRef.current = now;
+
     setSubmitting(true);
     setMessage("");
 
@@ -130,7 +174,13 @@ function AuthModalPanel({
     setSubmitting(false);
 
     if (result.error) {
-      setMessage(result.error);
+      if (isRateLimitError(result.error)) {
+        const until = Date.now() + RATE_LIMIT_COOLDOWN_MS;
+        setCooldownUntil(until);
+        setMessage("Too many attempts. Please wait before trying again.");
+      } else {
+        setMessage(result.error);
+      }
       return;
     }
 
@@ -142,6 +192,16 @@ function AuthModalPanel({
   };
 
   const handleGoogle = async () => {
+    if (isCoolingDown) {
+      return;
+    }
+
+    const now = Date.now();
+    if (now - lastSubmitRef.current < 2000) {
+      return;
+    }
+    lastSubmitRef.current = now;
+
     setSubmitting(true);
     setMessage("");
 
@@ -163,7 +223,13 @@ function AuthModalPanel({
       if (typeof window !== "undefined") {
         window.localStorage.removeItem(PENDING_AUTH_KEY);
       }
-      setMessage(result.error);
+      if (isRateLimitError(result.error)) {
+        const until = Date.now() + RATE_LIMIT_COOLDOWN_MS;
+        setCooldownUntil(until);
+        setMessage("Too many attempts. Please wait before trying again.");
+      } else {
+        setMessage(result.error);
+      }
       return;
     }
 
@@ -223,9 +289,11 @@ function AuthModalPanel({
             className="btn-secondary auth-google"
             type="button"
             onClick={handleGoogle}
-            disabled={submitting}
+            disabled={submitting || isCoolingDown}
           >
-            Continue with Google
+            {isCoolingDown
+              ? `Try again in ${cooldownLeft}s`
+              : "Continue with Google"}
           </button>
 
           <form className="auth-form" onSubmit={handleSubmit}>
@@ -259,8 +327,10 @@ function AuthModalPanel({
               placeholder="Password (min 8 characters)"
             />
 
-            <button className="btn-primary" type="submit" disabled={submitting}>
-              {submitting
+            <button className="btn-primary" type="submit" disabled={submitting || isCoolingDown}>
+              {isCoolingDown
+                ? `Try again in ${cooldownLeft}s`
+                : submitting
                 ? "Working..."
                 : tab === "signup"
                 ? "Create account"
