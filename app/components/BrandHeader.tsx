@@ -26,7 +26,13 @@ export default function BrandHeader(): React.JSX.Element {
   const [authTab, setAuthTab] = useState<"signup" | "login">("signup");
   const [menuOpen, setMenuOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [profileMenuPosition, setProfileMenuPosition] = useState<{
+    top: number;
+    right: number;
+    minWidth: number;
+  } | null>(null);
   const headerPanelRef = useRef<HTMLDivElement | null>(null);
+  const profileTriggerRef = useRef<HTMLButtonElement | null>(null);
   const testActive = isTestPath(pathname);
   const arenaActive = pathname.startsWith("/arena");
   const leaderboardActive = pathname.startsWith("/leaderboard");
@@ -59,6 +65,41 @@ export default function BrandHeader(): React.JSX.Element {
       document.removeEventListener("keydown", handleEscape);
     };
   }, [menuOpen, mobileNavOpen]);
+
+  useEffect(() => {
+    if (!menuOpen) {
+      return;
+    }
+
+    const updateMenuPosition = (): void => {
+      const trigger = profileTriggerRef.current;
+
+      if (!trigger) {
+        return;
+      }
+
+      if (window.innerWidth <= 1120) {
+        setProfileMenuPosition(null);
+        return;
+      }
+
+      const rect = trigger.getBoundingClientRect();
+      setProfileMenuPosition({
+        top: Math.round(rect.bottom + 12),
+        right: Math.max(16, Math.round(window.innerWidth - rect.right)),
+        minWidth: Math.max(220, Math.round(rect.width + 52)),
+      });
+    };
+
+    updateMenuPosition();
+    window.addEventListener("resize", updateMenuPosition);
+    window.addEventListener("scroll", updateMenuPosition, true);
+
+    return () => {
+      window.removeEventListener("resize", updateMenuPosition);
+      window.removeEventListener("scroll", updateMenuPosition, true);
+    };
+  }, [menuOpen]);
 
   const displayName =
     profile?.display_name?.trim() ||
@@ -167,6 +208,7 @@ export default function BrandHeader(): React.JSX.Element {
                   />
                   <div className="site-profile-menu">
                     <button
+                      ref={profileTriggerRef}
                       className={`site-profile-trigger ${profileToneClass}`}
                       type="button"
                       onClick={() => setMenuOpen((value) => !value)}
@@ -181,7 +223,19 @@ export default function BrandHeader(): React.JSX.Element {
                     </button>
 
                     {menuOpen ? (
-                      <div className="site-profile-dropdown" role="menu">
+                      <div
+                        className="site-profile-dropdown"
+                        role="menu"
+                        style={
+                          profileMenuPosition
+                            ? {
+                                top: `${profileMenuPosition.top}px`,
+                                right: `${profileMenuPosition.right}px`,
+                                minWidth: `${profileMenuPosition.minWidth}px`,
+                              }
+                            : undefined
+                        }
+                      >
                         <div className="site-profile-dropdown-head">
                           <strong>{displayName}</strong>
                           <span>{rankTier}</span>
