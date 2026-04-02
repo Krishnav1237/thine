@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+export const runtime = "edge";
+
 import AuthPromptCard from "../components/auth/AuthPromptCard";
 import BrandHeader from "../components/BrandHeader";
 import { getSupabaseAdminClient, getSupabaseServerClient } from "../lib/supabase/server";

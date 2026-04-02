@@ -1,6 +1,9 @@
 import Link from "next/link";
 
+import SignOutButton from "../components/auth/SignOutButton";
 import BrandHeader from "../components/BrandHeader";
+
+export const runtime = "edge";
 import { getSupabaseServerClient } from "../lib/supabase/server";
 import type { ProfileRow } from "../lib/supabase/types";
 
@@ -158,6 +161,17 @@ export default async function DashboardPage() {
                   <Link href="/leaderboard" className="btn-secondary">
                     View Leaderboard
                   </Link>
+                </div>
+              </section>
+
+              <section className="report-card dashboard-actions-card">
+                <div className="section-heading">
+                  <span className="section-eyebrow">Session</span>
+                  <h2 className="conversion-title">Account command centre.</h2>
+                </div>
+
+                <div className="dashboard-actions-row">
+                  <SignOutButton />
                 </div>
               </section>
 
