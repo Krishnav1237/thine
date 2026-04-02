@@ -234,12 +234,18 @@ export function AuthProvider({
         return { error: error.message };
       }
 
-      if (data.user) {
+      if (data.session && data.user) {
         await ensureProfileRow({
           user: data.user,
           username,
           displayName: displayName || username,
         });
+        return {};
+      }
+
+      // If there is a user but no session, it means email confirmation is required.
+      if (data.user && !data.session) {
+        return { error: "Account created! Please check your email to verify before logging in." };
       }
 
       return {};
