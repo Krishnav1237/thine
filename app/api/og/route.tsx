@@ -1,22 +1,26 @@
 import { ImageResponse } from "@vercel/og";
 import { NextRequest } from "next/server";
-import { readFile } from "node:fs/promises";
 
 import { MAX_SCORE, parseScoreParam } from "../../data/questions";
 import { getScoreBand } from "../../lib/analyzeUser";
 
-const serifFont = readFile(
-  new URL("../../../public/fonts/IMFeGPrm28P.ttf", import.meta.url)
-);
+export const runtime = "edge";
+
+async function loadFont(request: NextRequest): Promise<ArrayBuffer> {
+  const origin = new URL(request.url).origin;
+  const res = await fetch(`${origin}/fonts/IMFeGPrm28P.ttf`);
+  return res.arrayBuffer();
+}
 
 function cleanText(value: string | null, max = 42) {
   return value?.trim().slice(0, max) || undefined;
 }
 
 export async function GET(request: NextRequest) {
+  try {
   const { searchParams } = new URL(request.url);
   const type = searchParams.get("type") === "arena" ? "arena" : "quiz";
-  const serifData = await serifFont;
+  const serifData = await loadFont(request);
 
   if (type === "arena") {
     const profile = cleanText(searchParams.get("profile")) ?? "Nuanced Thinker";
@@ -368,4 +372,11 @@ export async function GET(request: NextRequest) {
       ],
     }
   );
+  } catch (error) {
+    console.error("OG image generation failed:", error);
+    return new Response(
+      JSON.stringify({ error: "Failed to generate image" }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
+    );
+  }
 }
